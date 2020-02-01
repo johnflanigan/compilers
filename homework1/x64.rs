@@ -8,7 +8,7 @@ use crate::common::Label;
 
 use std::collections::HashMap;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /*
  * Note that these registers are only those which are 64-bit
@@ -116,13 +116,19 @@ pub struct X64Program {
 /* Helpful Macros */
 macro_rules! nop {
     () => {
-        X64Instruction { op_code: X64opCode::Nop, args: Operands::Zero }
+        X64Instruction {
+            op_code: X64opCode::Nop,
+            args: Operands::Zero,
+        }
     };
 }
 
 macro_rules! ret {
     () => {
-        X64Instruction { op_code: X64opCode::Ret, args: Operands::Zero }
+        X64Instruction {
+            op_code: X64opCode::Ret,
+            args: Operands::Zero,
+        }
     };
 }
 
@@ -164,8 +170,8 @@ impl fmt::Display for X64Register {
             X64Register::Rbp => "rbp",
             X64Register::Rsi => "rsi",
             X64Register::Rdi => "rdi",
-            X64Register::R8  => "r8",
-            X64Register::R9  => "r9",
+            X64Register::R8 => "r8",
+            X64Register::R9 => "r9",
             X64Register::R10 => "r10",
             X64Register::R11 => "r11",
             X64Register::R12 => "r12",
@@ -199,7 +205,7 @@ impl fmt::Display for X64opCode {
             X64opCode::Jge => "jge",
             X64opCode::Jl => "jl",
             X64opCode::Jle => "jle",
-	    X64opCode::Lea => "lea",
+            X64opCode::Lea => "lea",
             X64opCode::Nop => "nop",
             X64opCode::Cmp => "cmp",
         };
@@ -209,38 +215,37 @@ impl fmt::Display for X64opCode {
 
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: write display code for each kind of operand
+        // HOMEWORK 1: write display code for each kind of operand
     }
 }
 
 impl fmt::Display for X64Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: write display code for each kind of X64Value
+        // HOMEWORK 1: write display code for each kind of X64Value
     }
 }
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: write display code for zero, one, or two operands
+        // HOMEWORK 1: write display code for zero, one, or two operands
     }
 }
 
 impl fmt::Display for X64Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: write display code for a full instruction
+        // HOMEWORK 1: write display code for a full instruction
     }
 }
 
 impl fmt::Display for X64Assembly {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: write display code for either label or instruction
+        // HOMEWORK 1: write display code for either label or instruction
     }
 }
 
 impl fmt::Display for X64Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	// HOMEWORK 1: Loop over the assembly in the function, write out
-	// each entry
+        // HOMEWORK 1: Loop over the assembly in the function, write out
+        // each entry
     }
 }
-

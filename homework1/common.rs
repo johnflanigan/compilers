@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum Label {
@@ -67,7 +67,7 @@ pub struct SymbolGenerator {
 }
 
 impl SymbolGenerator {
-        pub fn new() -> Self {
+    pub fn new() -> Self {
         SymbolGenerator { next_uid: 0 }
     }
     pub fn new_symbol(&mut self) -> Symbol {
