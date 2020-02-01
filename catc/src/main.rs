@@ -61,7 +61,7 @@ fn example_1() -> X64Program {
                 }),
                 Instruction(X64Instruction {
                     op_code: Jg,
-                    args: One(Immediate(LabelRef(Uid(0)))),
+                    args: One(MemoryImm(LabelRef(Uid(0)))),
                 }),
                 Instruction(X64Instruction {
                     op_code: Movq,
@@ -69,7 +69,7 @@ fn example_1() -> X64Program {
                 }),
                 Instruction(X64Instruction {
                     op_code: Call,
-                    args: One(Immediate(LabelRef(PrintlnInt))),
+                    args: One(MemoryImm(LabelRef(PrintlnInt))),
                 }),
                 Instruction(X64Instruction {
                     op_code: Movq,

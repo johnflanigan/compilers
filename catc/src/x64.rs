@@ -154,7 +154,7 @@ use std::fmt;
 impl fmt::Display for X64Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Basic main only assembly generation:
-        write!(f, ".globl main\nmain:\n{}", self.main_function)
+        write!(f, ".globl _main\n_main:\n{}", self.main_function)
         // TODO include strings and other_functions
     }
 }
@@ -216,30 +216,59 @@ impl fmt::Display for X64opCode {
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: write display code for each kind of operand
+        let name = match self {
+            Operand::Immediate(value) => format!("${}", value),
+            Operand::Register(register) => format!("{}", register),
+            Operand::MemoryImm(value) => format!("{}", value),
+            Operand::MemoryReg(register) => format!("({})", register),
+            Operand::MemoryOffset(value, register) => format!("{}({})", value, register),
+            Operand::MemoryScaledIndexed(value, base, scale_factor, index) => {
+                format!("{}({}, {}, {})", value, base, index, scale_factor)
+            }
+        };
+        write!(f, "{}", name)
     }
 }
 
 impl fmt::Display for X64Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: write display code for each kind of X64Value
+        let name = match self {
+            X64Value::LabelRef(label) => format!("{}", label),
+            X64Value::Absolute(value) => format!("{}", value),
+        };
+        write!(f, "{}", name)
     }
 }
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: write display code for zero, one, or two operands
+        let name = match self {
+            Operands::Zero => String::from(""),
+            Operands::One(operand) => format!("{}", operand),
+            Operands::Two(operand_1, operand_2) => format!("{}, {}", operand_1, operand_2),
+        };
+        write!(f, "{}", name)
     }
 }
 
 impl fmt::Display for X64Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: write display code for a full instruction
+        let name = format!("{} {}", self.op_code, self.args);
+        write!(f, "{}", name)
     }
 }
 
 impl fmt::Display for X64Assembly {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: write display code for either label or instruction
+        let name = match self {
+            X64Assembly::Label(label) => format!("{}:", label),
+            X64Assembly::Instruction(instruction) => format!("    {}", instruction),
+        };
+        write!(f, "{}", name)
     }
 }
 
@@ -247,5 +276,12 @@ impl fmt::Display for X64Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // HOMEWORK 1: Loop over the assembly in the function, write out
         // each entry
+        let result = self
+            .instruction_listing
+            .iter()
+            .map(|instruction| format!("{}", instruction))
+            .collect::<Vec<String>>()
+            .join("\n");
+        write!(f, "{}", result)
     }
 }

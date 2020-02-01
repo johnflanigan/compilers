@@ -85,7 +85,7 @@ impl fmt::Display for Label {
             Label::Uid(u) => write!(f, "L{}", u),
             Label::Allocate => write!(f, "allocate"),
             Label::AllocateAndMemset => write!(f, "allocate_and_memset"),
-            Label::PrintlnInt => write!(f, "print_line_int"),
+            Label::PrintlnInt => write!(f, "_print_line_int"),
             Label::PrintlnString => write!(f, "print_line_string"),
             Label::PrintInt => write!(f, "print_int"),
             Label::PrintString => write!(f, "print_string"),
