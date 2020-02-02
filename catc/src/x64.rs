@@ -58,6 +58,8 @@ pub enum X64opCode {
     Lea,
     Nop,
     Cmp,
+    Movabsq,
+    Inc,
     // Feel free to add opCodes
     // if you find them useful
 }
@@ -153,9 +155,18 @@ use std::fmt;
  */
 impl fmt::Display for X64Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut result = String::new();
+
         // Basic main only assembly generation:
-        write!(f, ".globl _main\n_main:\n{}", self.main_function)
+        result.push_str(&format!(".globl _main\n_main:\n{}\n", self.main_function));
+
         // TODO include strings and other_functions
+        for (label, string) in self.string_literals.iter() {
+            result.push_str(&format!("{}:\n", label));
+            result.push_str(&format!("    .string \"{}\"\n", string));
+        }
+
+        write!(f, "{}", result)
     }
 }
 
@@ -208,6 +219,8 @@ impl fmt::Display for X64opCode {
             X64opCode::Lea => "lea",
             X64opCode::Nop => "nop",
             X64opCode::Cmp => "cmp",
+            X64opCode::Movabsq => "movabsq",
+            X64opCode::Inc => "inc",
         };
         write!(f, "{}", name)
     }

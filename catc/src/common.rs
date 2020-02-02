@@ -11,6 +11,8 @@ pub enum Label {
     PrintlnString,
     PrintInt,
     PrintString,
+    Atoi,
+    Printf,
 }
 
 #[derive(Debug)]
@@ -89,6 +91,8 @@ impl fmt::Display for Label {
             Label::PrintlnString => write!(f, "print_line_string"),
             Label::PrintInt => write!(f, "print_int"),
             Label::PrintString => write!(f, "print_string"),
+            Label::Atoi => write!(f, "_atoi"),
+            Label::Printf => write!(f, "_printf"),
         }
     }
 }
