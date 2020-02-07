@@ -24,7 +24,7 @@ loop:
 print:
         callq   _printf
 
-        movl    $0, %eax
+        movq    $0, %rax
         addq    $16, %rsp
         popq    %rbp
         retq
