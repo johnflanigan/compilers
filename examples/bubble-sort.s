@@ -98,19 +98,42 @@ exit_inner:
         jmp     outer
 
 exit_outer:
-        /* Print sorted array */
+        /* Print first part of string */
         movabsq $str1, %rdi
+        call    _print_string
+
+        /* Print first element of array */
         movq    $-1, %r11
-        movq    (%r15, %r11, 8), %rsi
+        movq    (%r15, %r11, 8), %rdi
+        call    _print_int
+        movabsq $str2, %rdi
+        call    _print_string
+
+        /* Print second element of array */
         movq    $-2, %r11
-        movq    (%r15, %r11, 8), %rdx
+        movq    (%r15, %r11, 8), %rdi
+        call    _print_int
+        movabsq $str2, %rdi
+        call    _print_string
+
+        /* Print third element of array */
         movq    $-3, %r11
-        movq    (%r15, %r11, 8), %rcx
+        movq    (%r15, %r11, 8), %rdi
+        call    _print_int
+        movabsq $str2, %rdi
+        call    _print_string
+
+        /* Print fourth element of array */
         movq    $-4, %r11
-        movq    (%r15, %r11, 8), %r8
+        movq    (%r15, %r11, 8), %rdi
+        call    _print_int
+        movabsq $str2, %rdi
+        call    _print_string
+
+        /* Print fifth element of array */
         movq    $-5, %r11
-        movq    (%r15, %r11, 8), %r9
-        callq   _printf
+        movq    (%r15, %r11, 8), %rdi
+        call    _print_line_int
 
         /* Deallocate space */
         addq    $48, %rsp  
@@ -128,10 +151,6 @@ swap:
         jmp     exit_swap
 
 str1:
-        .asciz  "Sorted array: %d, %d, %d, %d, %d\n"
+        .string "Sorted array: "
 str2:
-        .asciz "i: %d\n"
-str3:
-        .asciz "j: %d\n"
-str4:
-        .asciz "array[j]: %d, array[j+1]: %d\n"
+        .string ", "

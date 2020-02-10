@@ -45,17 +45,30 @@ L3:
     jmp L0
 L4:
     movabsq $L6, %rdi
+    call _print_string
     movq $-1, %r11
-    movq 0(%r15, %r11, 8), %rsi
+    movq 0(%r15, %r11, 8), %rdi
+    call _print_int
+    movabsq $L7, %rdi
+    call _print_string
     movq $-2, %r11
-    movq 0(%r15, %r11, 8), %rdx
+    movq 0(%r15, %r11, 8), %rdi
+    call _print_int
+    movabsq $L7, %rdi
+    call _print_string
     movq $-3, %r11
-    movq 0(%r15, %r11, 8), %rcx
+    movq 0(%r15, %r11, 8), %rdi
+    call _print_int
+    movabsq $L7, %rdi
+    call _print_string
     movq $-4, %r11
-    movq 0(%r15, %r11, 8), %r8
+    movq 0(%r15, %r11, 8), %rdi
+    call _print_int
+    movabsq $L7, %rdi
+    call _print_string
     movq $-5, %r11
-    movq 0(%r15, %r11, 8), %r9
-    call _printf
+    movq 0(%r15, %r11, 8), %rdi
+    call _print_line_int
     add $48, %rsp
     movq $0, %rax
     add $16, %rsp
@@ -66,5 +79,7 @@ L5:
     movq %rsi, 0(%r15, %r9, 8)
     jmp L2
 L6:
-    .string "Sorted array: %d, %d, %d, %d, %d\n"
+    .string "Sorted array: "
+L7:
+    .string ", "
 

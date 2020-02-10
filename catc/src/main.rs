@@ -12,9 +12,10 @@ use crate::x64::{
     X64opCode,
 };
 
-use crate::common::Label::Atoi;
-use crate::common::Label::Printf;
+use crate::common::Label::PrintInt;
+use crate::common::Label::PrintString;
 use crate::common::Label::PrintlnInt;
+use crate::common::Label::PrintlnString;
 use crate::common::Label::Uid;
 use std::collections::HashMap;
 use Operand::*;
@@ -124,66 +125,91 @@ fn example_2() -> X64Program {
                     op_code: Movq,
                     args: Two(MemoryOffset(Absolute(8), Rsi), Register(Rdi)),
                 }),
-                // call _atoi
-                Instruction(X64Instruction {
-                    op_code: Call,
-                    args: One(MemoryImm(LabelRef(Atoi))),
-                }),
-                // movq %rax, %rsi
+                // movq $100, %r12
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(Register(Rax), Register(Rsi)),
+                    args: Two(Immediate(Absolute(100)), Register(R12)),
                 }),
-                // movabsq $str1, %rdi
-                Instruction(X64Instruction {
-                    op_code: Movabsq,
-                    args: Two(Immediate(LabelRef(Uid(0))), Register(Rdi)),
-                }),
-                // movq $0, %rdx
+                // movq $0, %r13
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(Immediate(Absolute(0)), Register(Rdx)),
+                    args: Two(Immediate(Absolute(0)), Register(R13)),
                 }),
-                // movq $0, %rcx
+                // movq $0, %r14
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(Immediate(Absolute(0)), Register(Rcx)),
+                    args: Two(Immediate(Absolute(0)), Register(R14)),
                 }),
                 // loop:
-                Label(Uid(1)),
-                // cmp %rsi, %rcx
+                Label(Uid(0)),
+                // cmp %r12, %r14
                 Instruction(X64Instruction {
                     op_code: Cmp,
-                    args: Two(Register(Rsi), Register(Rcx)),
+                    args: Two(Register(R12), Register(R14)),
                 }),
                 // je print
                 Instruction(X64Instruction {
                     op_code: Je,
-                    args: One(MemoryImm(LabelRef(Uid(2)))),
+                    args: One(MemoryImm(LabelRef(Uid(1)))),
                 }),
-                // inc %rcx
+                // inc %r14
                 Instruction(X64Instruction {
                     op_code: Inc,
-                    args: One(Register(Rcx)),
+                    args: One(Register(R14)),
                 }),
-                // add %rcx, %rdx
+                // add %r14, %r13
                 Instruction(X64Instruction {
                     op_code: Add,
-                    args: Two(Register(Rcx), Register(Rdx)),
+                    args: Two(Register(R14), Register(R13)),
                 }),
                 // jmp loop
                 Instruction(X64Instruction {
                     op_code: Jmp,
-                    args: One(MemoryImm(LabelRef(Uid(1)))),
+                    args: One(MemoryImm(LabelRef(Uid(0)))),
                 }),
                 // print:
-                Label(Uid(2)),
-                // callq _printf
+                Label(Uid(1)),
+                // movabsq $str1, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(2))), Register(Rdi)),
+                }),
+                // callq _print_string
                 Instruction(X64Instruction {
                     op_code: Call,
-                    args: One(MemoryImm(LabelRef(Printf))),
+                    args: One(MemoryImm(LabelRef(PrintString))),
                 }),
-                // movl $0, %eax
+                // movq %r12, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movq,
+                    args: Two(Register(R12), Register(Rdi)),
+                }),
+                // callq _print_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintInt))),
+                }),
+                // movabsq $str2, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(3))), Register(Rdi)),
+                }),
+                // callq _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
+                }),
+                // movq %r13, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movq,
+                    args: Two(Register(R13), Register(Rdi)),
+                }),
+                // callq _print_line_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintlnInt))),
+                }),
+                // movl $0, %rax
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(0)), Register(Rax)),
@@ -211,7 +237,8 @@ fn example_2() -> X64Program {
 
     example
         .string_literals
-        .insert(Uid(0), String::from("Sum from 1 to %d is %d\\n"));
+        .insert(Uid(2), String::from("Sum from 1 to "));
+    example.string_literals.insert(Uid(3), String::from(" is "));
     example
 }
 
@@ -444,60 +471,125 @@ fn example_3() -> X64Program {
                     op_code: Movabsq,
                     args: Two(Immediate(LabelRef(Uid(6))), Register(Rdi)),
                 }),
+                // call _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
+                }),
                 // movq $-1, %r11
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(-1)), Register(R11)),
                 }),
-                // movq (%r15, %r11, 8), %rsi
+                // movq (%r15, %r11, 8), %rdi
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rsi)),
+                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdi)),
+                }),
+                // call _print_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintInt))),
+                }),
+                // movabsq $str2, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(7))), Register(Rdi)),
+                }),
+                // call _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
                 }),
                 // movq $-2, %r11
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(-2)), Register(R11)),
                 }),
-                // movq (%r15, %r11, 8), %rdx
+                // movq (%r15, %r11, 8), %rdi
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdx)),
+                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdi)),
+                }),
+                // call _print_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintInt))),
+                }),
+                // movabsq $str2, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(7))), Register(Rdi)),
+                }),
+                // call _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
                 }),
                 // movq $-3, %r11
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(-3)), Register(R11)),
                 }),
-                // movq (%r15, %r11, 8), %rcx
+                // movq (%r15, %r11, 8), %rdi
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rcx)),
+                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdi)),
+                }),
+                // call _print_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintInt))),
+                }),
+                // movabsq $str2, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(7))), Register(Rdi)),
+                }),
+                // call _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
                 }),
                 // movq $-4, %r11
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(-4)), Register(R11)),
                 }),
-                // movq (%r15, %r11, 8), %r8
+                // movq (%r15, %r11, 8), %rdi
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(R8)),
+                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdi)),
+                }),
+                // call _print_int
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintInt))),
+                }),
+                // movabsq $str2, %rdi
+                Instruction(X64Instruction {
+                    op_code: Movabsq,
+                    args: Two(Immediate(LabelRef(Uid(7))), Register(Rdi)),
+                }),
+                // call _print_string
+                Instruction(X64Instruction {
+                    op_code: Call,
+                    args: One(MemoryImm(LabelRef(PrintString))),
                 }),
                 // movq $-5, %r11
                 Instruction(X64Instruction {
                     op_code: Movq,
                     args: Two(Immediate(Absolute(-5)), Register(R11)),
                 }),
-                // movq (%r15, %r11, 8), %r9
+                // movq (%r15, %r11, 8), %rdi
                 Instruction(X64Instruction {
                     op_code: Movq,
-                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(R9)),
+                    args: Two(MemoryScaledIndexed(Absolute(0), R15, 8, R11), Register(Rdi)),
                 }),
-                // callq _printf
+                // call _print_int
                 Instruction(X64Instruction {
                     op_code: Call,
-                    args: One(MemoryImm(LabelRef(Printf))),
+                    args: One(MemoryImm(LabelRef(PrintlnInt))),
                 }),
                 // addq $48, %rsp
                 Instruction(X64Instruction {
@@ -549,7 +641,8 @@ fn example_3() -> X64Program {
 
     example
         .string_literals
-        .insert(Uid(6), String::from("Sorted array: %d, %d, %d, %d, %d\\n"));
+        .insert(Uid(6), String::from("Sorted array: "));
+    example.string_literals.insert(Uid(7), String::from(", "));
     example
 }
 

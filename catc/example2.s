@@ -4,23 +4,30 @@ _main:
     movq %rsp, %rbp
     sub $16, %rsp
     movq 8(%rsi), %rdi
-    call _atoi
-    movq %rax, %rsi
-    movabsq $L0, %rdi
-    movq $0, %rdx
-    movq $0, %rcx
+    movq $100, %r12
+    movq $0, %r13
+    movq $0, %r14
+L0:
+    cmp %r12, %r14
+    je L1
+    inc %r14
+    add %r14, %r13
+    jmp L0
 L1:
-    cmp %rsi, %rcx
-    je L2
-    inc %rcx
-    add %rcx, %rdx
-    jmp L1
-L2:
-    call _printf
+    movabsq $L2, %rdi
+    call _print_string
+    movq %r12, %rdi
+    call _print_int
+    movabsq $L3, %rdi
+    call _print_string
+    movq %r13, %rdi
+    call _print_line_int
     movq $0, %rax
     add $16, %rsp
     popq %rbp
     ret 
-L0:
-    .string "Sum from 1 to %d is %d\n"
+L3:
+    .string " is "
+L2:
+    .string "Sum from 1 to "
 

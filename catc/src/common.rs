@@ -11,8 +11,6 @@ pub enum Label {
     PrintlnString,
     PrintInt,
     PrintString,
-    Atoi,
-    Printf,
 }
 
 #[derive(Debug)]
@@ -88,11 +86,9 @@ impl fmt::Display for Label {
             Label::Allocate => write!(f, "allocate"),
             Label::AllocateAndMemset => write!(f, "allocate_and_memset"),
             Label::PrintlnInt => write!(f, "_print_line_int"),
-            Label::PrintlnString => write!(f, "print_line_string"),
-            Label::PrintInt => write!(f, "print_int"),
-            Label::PrintString => write!(f, "print_string"),
-            Label::Atoi => write!(f, "_atoi"),
-            Label::Printf => write!(f, "_printf"),
+            Label::PrintlnString => write!(f, "_print_line_string"),
+            Label::PrintInt => write!(f, "_print_int"),
+            Label::PrintString => write!(f, "_print_string"),
         }
     }
 }
