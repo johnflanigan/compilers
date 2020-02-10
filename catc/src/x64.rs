@@ -60,6 +60,7 @@ pub enum X64opCode {
     Cmp,
     Movabsq,
     Inc,
+    Dec,
     // Feel free to add opCodes
     // if you find them useful
 }
@@ -221,6 +222,7 @@ impl fmt::Display for X64opCode {
             X64opCode::Cmp => "cmp",
             X64opCode::Movabsq => "movabsq",
             X64opCode::Inc => "inc",
+            X64opCode::Dec => "dec",
         };
         write!(f, "{}", name)
     }
