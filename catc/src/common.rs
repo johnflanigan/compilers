@@ -92,3 +92,9 @@ impl fmt::Display for Label {
         }
     }
 }
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "S{}", self.uid)
+    }
+}
