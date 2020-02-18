@@ -34,7 +34,7 @@ pub struct GlobalInfo {
  *      label_gen:
  *          label generator that generates new, valid labels for the program
  *      symbol_gen:
- *          symbol generator that generates new, valid labels for the program
+ *          symbol generator that generates new, valid symbols for the program
  * Output:
  *      the compiled program
  */
@@ -85,11 +85,178 @@ fn select(code: LIRProgram, state: &mut GlobalInfo) -> X64SProgram {
  *      X64SProgram with no more than one memory indirect operand per
  *      instruction.
  * Output:
- *      XS64Program with at most one potential memory op (symbol) per
+ *      X64SProgram with at most one potential memory op (symbol) per
  *      instruction.
  */
-pub fn fix_up(progam: X64SProgram) -> X64SProgram {
-    unimplemented!("Homework 2");
+pub fn fix_up(program: X64SProgram) -> X64SProgram {
+    let mut fixed_program = X64SProgram {
+        main_function: fix_up_fn(&program.main_function),
+        other_functions: HashMap::new(),
+        string_literals: program.string_literals.clone(),
+    };
+
+    for (label, function) in program.other_functions.iter() {
+        fixed_program
+            .other_functions
+            .insert(label.clone(), fix_up_fn(function));
+    }
+
+    fixed_program
+}
+
+/*
+ * Fix Up Function
+ *
+ * Input:
+ *      X64SFunction with no more than one memory indirect operand per
+ *      instruction.
+ * Output:
+ *      X64SFunction with at most one potential memory op (symbol) per
+ *      instruction.
+ */
+fn fix_up_fn(function: &X64SFunction) -> X64SFunction {
+    let mut fixed_function = X64SFunction { body: Vec::new() };
+
+    for assembly in &function.body {
+        match assembly {
+            X64SAssembly::Instruction(instruction) => {
+                match instruction.args {
+                    // op 'x', 'y'
+                    SOperands::Two(a @ SOperand::Symbol(_), b @ SOperand::Symbol(_)) => {
+                        // mov a into rax
+                        let instruction_1 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(a, SOperand::Register(X64Register::Rax)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_1));
+
+                        // opcode rax, b
+                        let instruction_2 = X64SInstruction {
+                            op_code: instruction.op_code,
+                            args: SOperands::Two(SOperand::Register(X64Register::Rax), b),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_2));
+                    }
+                    // op ('p'), %reg
+                    SOperands::Two(a @ SOperand::MemorySym(_), b @ SOperand::Register(_)) => {
+                        // mov a into rax
+                        let instruction_1 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(a, SOperand::Register(X64Register::Rax)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_1));
+
+                        // mov (rax) into rax
+                        let instruction_2 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(
+                                SOperand::MemoryReg(X64Register::Rax),
+                                SOperand::Register(X64Register::Rax),
+                            ),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_2));
+
+                        // opcode rax, b
+                        let instruction_3 = X64SInstruction {
+                            op_code: instruction.op_code,
+                            args: SOperands::Two(SOperand::Register(X64Register::Rax), b),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_3));
+                    }
+                    // op ('p'), 'y'
+                    SOperands::Two(a @ SOperand::MemorySym(_), b @ SOperand::Symbol(_)) => {
+                        // mov a into rax
+                        let instruction_1 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(a, SOperand::Register(X64Register::Rax)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_1));
+
+                        // mov (rax) into rax
+                        let instruction_2 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(
+                                SOperand::MemoryReg(X64Register::Rax),
+                                SOperand::Register(X64Register::Rax),
+                            ),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_2));
+
+                        // opcode rax, b
+                        let instruction_3 = X64SInstruction {
+                            op_code: instruction.op_code,
+                            args: SOperands::Two(SOperand::Register(X64Register::Rax), b),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_3));
+                    }
+                    // op ('p'), ('q')
+                    SOperands::Two(a @ SOperand::MemorySym(_), b @ SOperand::MemorySym(_)) => {
+                        // mov a into rax
+                        let instruction_1 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(a, SOperand::Register(X64Register::Rax)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_1));
+
+                        // mov (rax) into rax
+                        let instruction_2 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(
+                                SOperand::MemoryReg(X64Register::Rax),
+                                SOperand::Register(X64Register::Rax),
+                            ),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_2));
+
+                        // mov b into rdx
+                        let instruction_3 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(b, SOperand::Register(X64Register::Rdx)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_3));
+
+                        // opcode rax, (rdx)
+                        let instruction_4 = X64SInstruction {
+                            op_code: instruction.op_code,
+                            args: SOperands::Two(
+                                SOperand::Register(X64Register::Rax),
+                                SOperand::MemoryReg(X64Register::Rdx),
+                            ),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_4));
+                    }
+                    _ => (fixed_function.body.push(assembly.clone())),
+                };
+            }
+            _ => (fixed_function.body.push(assembly.clone())),
+        }
+    }
+
+    fixed_function
 }
 
 /*
