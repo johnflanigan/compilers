@@ -32,5 +32,10 @@ fn main() {
 
     let example_program: X64SProgram = ron::de::from_str(&example).unwrap();
 
-    print!("Example Program:\n{:?}\n", example_program);
+    // print!("Example Program:\n{:?}\n", example_program);
+
+    // Test code for intermediate X64SProgram
+    let single_memory_op = crate::backend::fix_up(example_program);
+    let assigned_to_stack = crate::backend::assign_homes(single_memory_op);
+    print!("{}\n", assigned_to_stack);
 }

@@ -15,6 +15,7 @@ use crate::x64::{
 use crate::x64s::{SOperand, SOperands, X64SAssembly, X64SFunction, X64SInstruction, X64SProgram};
 
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 
 #[derive(Debug)]
 pub struct GlobalInfo {
@@ -92,13 +93,13 @@ pub fn fix_up(program: X64SProgram) -> X64SProgram {
     let mut fixed_program = X64SProgram {
         main_function: fix_up_fn(&program.main_function),
         other_functions: HashMap::new(),
-        string_literals: program.string_literals.clone(),
+        string_literals: program.string_literals,
     };
 
     for (label, function) in program.other_functions.iter() {
         fixed_program
             .other_functions
-            .insert(label.clone(), fix_up_fn(function));
+            .insert(*label, fix_up_fn(function));
     }
 
     fixed_program
@@ -253,7 +254,7 @@ fn fix_up_fn(function: &X64SFunction) -> X64SFunction {
                 };
             }
             _ => (fixed_function.body.push(assembly.clone())),
-        }
+        };
     }
 
     fixed_function
@@ -272,7 +273,26 @@ fn fix_up_fn(function: &X64SFunction) -> X64SFunction {
  *      X64Program ready to run.
  */
 pub fn assign_homes(program: X64SProgram) -> X64Program {
-    unimplemented!("Homework 2");
+    let main_allocation = register_alloc(&program.main_function);
+    let main_assignment = register_assignment(main_allocation);
+
+    let mut compiled_program = X64Program {
+        main_function: assign_homes_fn(program.main_function, main_assignment),
+        other_functions: HashMap::new(),
+        string_literals: program.string_literals,
+    };
+
+    for (label, function) in program.other_functions.iter() {
+        let function_allocation = register_alloc(function);
+        let function_assignment = register_assignment(function_allocation);
+        let compiled_function = assign_homes_fn(function.clone(), function_assignment);
+
+        compiled_program
+            .other_functions
+            .insert(*label, compiled_function);
+    }
+
+    compiled_program
 }
 
 /*
@@ -286,7 +306,198 @@ pub fn assign_homes(program: X64SProgram) -> X64Program {
  *      stack offsets.
  */
 fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -> X64Function {
-    unimplemented!("Homework 2");
+    let mut compiled_function = X64Function {
+        instruction_listing: Vec::new(),
+    };
+
+    // Prologue
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Push,
+            args: Operands::One(Operand::Register(X64Register::Rbp)),
+        }));
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Movq,
+            args: Operands::Two(
+                Operand::Register(X64Register::Rsp),
+                Operand::Register(X64Register::Rbp),
+            ),
+        }));
+    let stack_reservation: i64 = ((homes.len() + 1) * 8).try_into().unwrap();
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Sub,
+            args: Operands::Two(
+                Operand::Immediate(X64Value::Absolute(stack_reservation)),
+                Operand::Register(X64Register::Rsp),
+            ),
+        }));
+
+    for assembly in function.body {
+        match assembly {
+            X64SAssembly::Label(label) => {
+                compiled_function
+                    .instruction_listing
+                    .push(X64Assembly::Label(label));
+            }
+            X64SAssembly::Instruction(instruction) => {
+                match instruction.args {
+                    SOperands::One(SOperand::Symbol(symbol)) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
+                            }
+                            StackOrReg::Reg(register) => Operand::Register(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::One(operand),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::One(SOperand::MemorySym(symbol)) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                panic!("Memory stack access are not allowed")
+                            }
+                            StackOrReg::Reg(register) => Operand::MemoryReg(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::One(operand),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Two(SOperand::Symbol(symbol), b) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
+                            }
+                            StackOrReg::Reg(register) => Operand::Register(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Two(operand, b.try_into().unwrap()),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Two(SOperand::MemorySym(symbol), b) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                panic!("Memory stack access are not allowed")
+                            }
+                            StackOrReg::Reg(register) => Operand::MemoryReg(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Two(operand, b.try_into().unwrap()),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Two(a, SOperand::Symbol(symbol)) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
+                            }
+                            StackOrReg::Reg(register) => Operand::Register(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Two(a.try_into().unwrap(), operand),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Two(a, SOperand::MemorySym(symbol)) => {
+                        let stack_or_reg = homes.get(&symbol).unwrap();
+                        let operand = match stack_or_reg {
+                            StackOrReg::Stack(offset) => {
+                                panic!("Memory stack access are not allowed")
+                            }
+                            StackOrReg::Reg(register) => Operand::MemoryReg(*register),
+                        };
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Two(a.try_into().unwrap(), operand),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::One(a) => {
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::One(a.try_into().unwrap()),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Two(a, b) => {
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Two(a.try_into().unwrap(), b.try_into().unwrap()),
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                    SOperands::Zero => {
+                        let compiled_instruction = X64Assembly::Instruction(X64Instruction {
+                            op_code: instruction.op_code,
+                            args: Operands::Zero,
+                        });
+                        compiled_function
+                            .instruction_listing
+                            .push(compiled_instruction);
+                    }
+                };
+            }
+        };
+    }
+
+    // Epilogue
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Movq,
+            args: Operands::Two(
+                Operand::Register(X64Register::Rbp),
+                Operand::Register(X64Register::Rsp),
+            ),
+        }));
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Pop,
+            args: Operands::One(Operand::Register(X64Register::Rbp)),
+        }));
+    compiled_function
+        .instruction_listing
+        .push(X64Assembly::Instruction(X64Instruction {
+            op_code: X64opCode::Ret,
+            args: Operands::Zero,
+        }));
+
+    compiled_function
 }
 
 static AVALIBLE_REGISTERS: u64 = 16 - 2;
@@ -305,10 +516,41 @@ struct Color(u64);
  *      register should be placed on the stack. Some(Color) indicates the
  *      color of the symbol. The color can be in [0,.AVALIBLE_REGISTERS).
  */
-fn register_alloc(progam: &X64SFunction) -> HashMap<Symbol, Option<Color>> {
+fn register_alloc(function: &X64SFunction) -> HashMap<Symbol, Option<Color>> {
     // A default implementation for homework 2 can return a HashMap mapping
     // all the symbols in the function to None.
-    unimplemented!("Homework N");
+    let mut map = HashMap::new();
+
+    for assembly in &function.body {
+        match assembly {
+            X64SAssembly::Instruction(instruction) => {
+                match instruction.args {
+                    SOperands::One(SOperand::Symbol(symbol)) => {
+                        map.insert(symbol, None);
+                    }
+                    SOperands::One(SOperand::MemorySym(symbol)) => {
+                        map.insert(symbol, None);
+                    }
+                    SOperands::Two(SOperand::Symbol(symbol), _) => {
+                        map.insert(symbol, None);
+                    }
+                    SOperands::Two(SOperand::MemorySym(symbol), _) => {
+                        map.insert(symbol, None);
+                    }
+                    SOperands::Two(_, SOperand::Symbol(symbol)) => {
+                        map.insert(symbol, None);
+                    }
+                    SOperands::Two(_, SOperand::MemorySym(symbol)) => {
+                        map.insert(symbol, None);
+                    }
+                    _ => (),
+                };
+            }
+            _ => (),
+        };
+    }
+
+    map
 }
 
 #[derive(Debug)]
@@ -333,5 +575,13 @@ fn register_assignment(allocation: HashMap<Symbol, Option<Color>>) -> HashMap<Sy
 
     // A default implementation for homework 2 should map all symbols in
     // allocation to some stack offset.
-    unimplemented!("Homework N");
+    let mut assignment = HashMap::new();
+    let mut offset = -16;
+
+    for (symbol, _) in allocation.iter() {
+        assignment.insert(*symbol, StackOrReg::Stack(offset));
+        offset -= 8;
+    }
+
+    assignment
 }
