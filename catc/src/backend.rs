@@ -75,8 +75,670 @@ pub fn compile(
  *      LIR instruction then the later stages might clobber your careful use of
  *      Rax and Rdx.
  */
-fn select(code: LIRProgram, state: &mut GlobalInfo) -> X64SProgram {
-    unimplemented!("Homework 3");
+fn select(program: LIRProgram, state: &mut GlobalInfo) -> X64SProgram {
+    let mut string_literals = HashMap::new();
+
+    let mut selected_program = X64SProgram {
+        main_function: select_fn(&program.main_function, &mut string_literals, state),
+        other_functions: HashMap::new(),
+        string_literals: string_literals,
+    };
+
+    for (label, function) in program.other_functions.iter() {
+        selected_program.other_functions.insert(
+            *label,
+            select_fn(function, &mut selected_program.string_literals, state),
+        );
+    }
+
+    selected_program
+}
+
+fn select_fn(
+    function: &LIRFunction,
+    string_literals: &mut HashMap<Label, String>,
+    state: &mut GlobalInfo,
+) -> X64SFunction {
+    let mut selected_function = X64SFunction { body: Vec::new() };
+
+    // Move registers into parameters
+    for (pos, arg) in function.arguments.iter().enumerate() {
+        match pos {
+            0 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::Rdi),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            1 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::Rsi),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            2 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::Rdx),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            3 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::Rcx),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            4 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::R8),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            5 => {
+                selected_function
+                    .body
+                    .push(X64SAssembly::Instruction(X64SInstruction {
+                        op_code: X64opCode::Movq,
+                        args: SOperands::Two(
+                            SOperand::Register(X64Register::R9),
+                            SOperand::Symbol(*arg),
+                        ),
+                    }));
+            }
+            _ => {
+                panic!("Unexpected number of arguments");
+            }
+        };
+    }
+
+    // Convert LIRAssembly into X64SAssembly
+    for assembly in &function.instruction_listing {
+        match assembly {
+            LIRAssembly::Label(label) => {
+                selected_function.body.push(X64SAssembly::Label(*label));
+            }
+            LIRAssembly::Instruction(instruction) => {
+                match instruction {
+                    LIRInstruction::Nop => {
+                        // Do nothing, move on to next instruction.
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Nop,
+                                args: SOperands::Zero,
+                            }));
+                    }
+                    LIRInstruction::IntLit { assign_to, value } => {
+                        // Mutate the value stored at Symbol to be the same as "value".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Immediate(X64Value::Absolute(*value)),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::StringLit { assign_to, value } => {
+                        // Generate new string label
+                        let string_label = state.label_gen.new_label();
+
+                        // Add string to string_literals
+                        string_literals.insert(string_label, value.to_string());
+
+                        // Mutate the value stored at Symbol to be the memory location of the
+                        // immutable string "value".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Immediate(X64Value::LabelRef(string_label)),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::StoreToMemoryAtOffset {
+                        location,
+                        offset,
+                        value,
+                    } => {
+                        let memory_location = state.symbol_gen.new_symbol();
+
+                        // Move offset into new symbol
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*offset),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Multiply new symbol (offset) by 8 to get offset in bytes
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::IMulq,
+                                args: SOperands::Two(
+                                    SOperand::Immediate(X64Value::Absolute(8)),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Register(X64Register::Rax),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Add location to offset
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Add,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*location),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Store the value of symbol "value" as the memory location "location + offset".
+                        // This is used for array and record mutation.
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*value),
+                                    SOperand::MemorySym(memory_location),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::LoadFromMemoryAtOffset {
+                        assign_to,
+                        location,
+                        offset,
+                    } => {
+                        let memory_location = state.symbol_gen.new_symbol();
+
+                        // Move offset into new symbol
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*offset),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Multiply new symbol (offset) by 8 to get offset in bytes
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::IMulq,
+                                args: SOperands::Two(
+                                    SOperand::Immediate(X64Value::Absolute(8)),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Register(X64Register::Rax),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Add location to offset
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Add,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*location),
+                                    SOperand::Symbol(memory_location),
+                                ),
+                            }));
+
+                        // Mutate "assign_to" to be the value stored at the memory location
+                        // "location + offset". This is used to read a record or array.
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::MemorySym(memory_location),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::Assign { assign_to, id } => {
+                        // Mutate "assign_to" to be the value in "id".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*id),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::Negate { assign_to, value } => {
+                        // Mutate "assign_to" to be the value in "id".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*value),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+
+                        // Mutate "assign_to" to be the negation of "assign_to".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Neg,
+                                args: SOperands::One(SOperand::Symbol(*assign_to)),
+                            }));
+                    }
+                    LIRInstruction::BinaryOp {
+                        assign_to,
+                        left,
+                        op,
+                        right,
+                    } => {
+                        // Mutate "assign_to" to be the value in "left".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(*left),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+
+                        match op {
+                            InfixOp::Multiply => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Register(X64Register::Rax),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::IMulq,
+                                        args: SOperands::One(SOperand::Symbol(*right)),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Register(X64Register::Rax),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                            InfixOp::Divide => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Register(X64Register::Rax),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::IDivq,
+                                        args: SOperands::One(SOperand::Symbol(*right)),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Register(X64Register::Rax),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                            InfixOp::Add => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Add,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*right),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                            InfixOp::Substract => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Sub,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*right),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                            InfixOp::And => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::And,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*right),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                            InfixOp::Or => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Movq,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*left),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Or,
+                                        args: SOperands::Two(
+                                            SOperand::Symbol(*right),
+                                            SOperand::Symbol(*assign_to),
+                                        ),
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    LIRInstruction::Call {
+                        assign_to,
+                        function_name,
+                        args,
+                    } => {
+                        for (pos, arg) in args.iter().enumerate() {
+                            match pos {
+                                0 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::Rdi),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                1 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::Rsi),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                2 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::Rdx),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                3 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::Rcx),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                4 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::R8),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                5 => {
+                                    selected_function.body.push(X64SAssembly::Instruction(
+                                        X64SInstruction {
+                                            op_code: X64opCode::Movq,
+                                            args: SOperands::Two(
+                                                SOperand::Symbol(*arg),
+                                                SOperand::Register(X64Register::R9),
+                                            ),
+                                        },
+                                    ));
+                                }
+                                _ => {
+                                    panic!("Unexpected number of args");
+                                }
+                            };
+                        }
+
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Call,
+                                args: SOperands::One(SOperand::MemoryImm(X64Value::LabelRef(
+                                    *function_name,
+                                ))),
+                            }));
+
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Movq,
+                                args: SOperands::Two(
+                                    SOperand::Register(X64Register::Rax),
+                                    SOperand::Symbol(*assign_to),
+                                ),
+                            }));
+                    }
+                    LIRInstruction::Jump { to } => {
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Jmp,
+                                args: SOperands::One(SOperand::MemoryImm(X64Value::LabelRef(*to))),
+                            }));
+                    }
+                    LIRInstruction::JumpC { to, condition } => {
+                        // Perform comparison
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Cmp,
+                                args: SOperands::Two(
+                                    SOperand::Symbol(condition.left),
+                                    SOperand::Symbol(condition.right),
+                                ),
+                            }));
+
+                        // Jump based on condition
+                        match condition.c {
+                            ComparisonType::Equal => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Je,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                            ComparisonType::NotEqual => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Jne,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                            ComparisonType::GreaterThan => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Jg,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                            ComparisonType::LessThan => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Jl,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                            ComparisonType::GreaterThanEqual => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Jge,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                            ComparisonType::LessThanEqual => {
+                                selected_function.body.push(X64SAssembly::Instruction(
+                                    X64SInstruction {
+                                        op_code: X64opCode::Jle,
+                                        args: SOperands::One(SOperand::MemoryImm(
+                                            X64Value::LabelRef(*to),
+                                        )),
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Move return value into register
+    selected_function
+        .body
+        .push(X64SAssembly::Instruction(X64SInstruction {
+            op_code: X64opCode::Movq,
+            args: SOperands::Two(
+                SOperand::Symbol(function.return_symbol),
+                SOperand::Register(X64Register::Rax),
+            ),
+        }));
+
+    return selected_function;
 }
 
 /*
