@@ -217,9 +217,21 @@ fn select_fn(
                         selected_function
                             .body
                             .push(X64SAssembly::Instruction(X64SInstruction {
+                                op_code: X64opCode::Lea,
+                                args: SOperands::Two(
+                                    SOperand::MemoryOffset(X64Value::LabelRef(string_label), X64Register::Rip),
+                                    SOperand::Register(X64Register::Rax)
+                                ),
+                            }));
+
+                        // Mutate the value stored at Symbol to be the memory location of the
+                        // immutable string "value".
+                        selected_function
+                            .body
+                            .push(X64SAssembly::Instruction(X64SInstruction {
                                 op_code: X64opCode::Movq,
                                 args: SOperands::Two(
-                                    SOperand::Immediate(X64Value::LabelRef(string_label)),
+                                    SOperand::Register(X64Register::Rax),
                                     SOperand::Symbol(*assign_to),
                                 ),
                             }));
@@ -988,7 +1000,7 @@ fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -
                 Operand::Register(X64Register::Rbp),
             ),
         }));
-    let stack_reservation: i64 = ((homes.len() + 1) * 8).try_into().unwrap();
+    let stack_reservation: i64 = ((homes.len() + 2) * 8).try_into().unwrap();
     compiled_function
         .instruction_listing
         .push(X64Assembly::Instruction(X64Instruction {

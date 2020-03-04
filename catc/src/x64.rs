@@ -33,6 +33,7 @@ pub enum X64Register {
     R13, // Saved Across Calls
     R14, // Saved Across Calls
     R15, // Saved Across Calls
+    Rip, // Instruction pointer
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -176,6 +177,7 @@ impl fmt::Display for X64Register {
             X64Register::R13 => "r13",
             X64Register::R14 => "r14",
             X64Register::R15 => "r15",
+            X64Register::Rip => "rip",
         };
         write!(f, "%{}", name)
     }
