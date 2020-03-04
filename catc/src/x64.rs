@@ -3,6 +3,7 @@
  */
 
 #![allow(dead_code)]
+#![allow(unused_macros)]
 
 use crate::common::Label;
 
@@ -32,22 +33,29 @@ pub enum X64Register {
     R13, // Saved Across Calls
     R14, // Saved Across Calls
     R15, // Saved Across Calls
+    Rip, // Instruction pointer
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum X64opCode {
     Add,
     Sub,
-    IMulq,
-    IDivq,
+    Inc,
+    Dec,
     Or,
     And,
     Movq,
+    Movabsq,
+    Cmp,
+    Lea,
+
+    IMulq,
+    IDivq,
     Neg,
     Push,
     Pop,
+
     Call,
-    Ret,
     Jmp,
     Je,
     Jne,
@@ -55,20 +63,15 @@ pub enum X64opCode {
     Jge,
     Jl,
     Jle,
-    Lea,
+
+    Ret,
     Nop,
-    Cmp,
-    Movabsq,
-    Inc,
-    Dec,
+
+    Shl,
     // Feel free to add opCodes
     // if you find them useful
 }
 
-/** Immediate value
- *  Used to represent integer constants, known addresses, and label
- *  addresses
- */
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum X64Value {
     LabelRef(Label),
@@ -138,36 +141,20 @@ macro_rules! ret {
 /* Converting to assembly text file */
 use std::fmt;
 
-/*
- * Depending on the architecture you use you may have different assembly header
- * requirements. To get started implement the trait below.
- *
- * Note that string literals should be referred to by their location.
- * Use compiler directives to setup all the strings. e.g. L3 -> "Hello World"
- *
- * .LS3:
- *      .string "Hello World"
- * .L3:
- *      .quad .LNEW
- *
- * Note that labels get displayed as L#, so LS# will never conflict.
- *
- * Otherwise the translation should be straight forward.
- */
 impl fmt::Display for X64Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut result = String::new();
-
         // Basic main only assembly generation:
-        result.push_str(&format!(".globl _main\n_main:\n{}\n", self.main_function));
+        let mut program: String = format!(".globl _main\n_main:\n{}\n", self.main_function);
 
-        // TODO include strings and other_functions
-        for (label, string) in self.string_literals.iter() {
-            result.push_str(&format!("{}:\n", label));
-            result.push_str(&format!("    .string \"{}\"\n", string));
+        for (k, v) in self.other_functions.iter() {
+            program.push_str(format!("{}:\n{}", k, v).as_str());
         }
 
-        write!(f, "{}", result)
+        for (k, v) in self.string_literals.iter() {
+            program.push_str(format!("{}:\t.string \"{}\"\n", k, v).as_str());
+        }
+
+        write!(f, "{}", program)
     }
 }
 
@@ -190,6 +177,7 @@ impl fmt::Display for X64Register {
             X64Register::R13 => "r13",
             X64Register::R14 => "r14",
             X64Register::R15 => "r15",
+            X64Register::Rip => "rip",
         };
         write!(f, "%{}", name)
     }
@@ -220,6 +208,7 @@ impl fmt::Display for X64opCode {
             X64opCode::Lea => "lea",
             X64opCode::Nop => "nop",
             X64opCode::Cmp => "cmp",
+            X64opCode::Shl => "shlq",
             X64opCode::Movabsq => "movabsq",
             X64opCode::Inc => "inc",
             X64opCode::Dec => "dec",
@@ -230,73 +219,66 @@ impl fmt::Display for X64opCode {
 
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: write display code for each kind of operand
-        let name = match self {
-            Operand::Immediate(value) => format!("${}", value),
-            Operand::Register(register) => format!("{}", register),
-            Operand::MemoryImm(value) => format!("{}", value),
-            Operand::MemoryReg(register) => format!("({})", register),
-            Operand::MemoryOffset(value, register) => format!("{}({})", value, register),
-            Operand::MemoryScaledIndexed(value, base, scale_factor, index) => {
-                format!("{}({}, {}, {})", value, base, index, scale_factor)
+        match self {
+            Operand::Immediate(i) => write!(f, "${}", i),
+            Operand::Register(r) => write!(f, "{}", r),
+            Operand::MemoryImm(v) => write!(f, "{}", v),
+            Operand::MemoryReg(r) => write!(f, "({})", r),
+            Operand::MemoryOffset(offset, r) => write!(f, "{}({})", offset, r),
+            Operand::MemoryScaledIndexed(offset, r, scale, index) => {
+                write!(f, "{}({}, {}, {})", offset, r, index, scale)
             }
-        };
-        write!(f, "{}", name)
+        }
     }
 }
 
 impl fmt::Display for X64Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: write display code for each kind of X64Value
-        let name = match self {
-            X64Value::LabelRef(label) => format!("{}", label),
-            X64Value::Absolute(value) => format!("{}", value),
-        };
-        write!(f, "{}", name)
+        match self {
+            X64Value::LabelRef(l) => write!(f, "{}", l),
+            X64Value::Absolute(v) => write!(f, "{}", v),
+        }
     }
 }
 
 impl fmt::Display for Operands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: write display code for zero, one, or two operands
-        let name = match self {
-            Operands::Zero => String::from(""),
-            Operands::One(operand) => format!("{}", operand),
-            Operands::Two(operand_1, operand_2) => format!("{}, {}", operand_1, operand_2),
-        };
-        write!(f, "{}", name)
+        match self {
+            Operands::Zero => write!(f, ""),
+            Operands::One(o) => write!(f, "{}", o),
+            Operands::Two(a, b) => write!(f, "{}, {}", a, b),
+        }
     }
 }
 
 impl fmt::Display for X64Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: write display code for a full instruction
-        let name = format!("{} {}", self.op_code, self.args);
-        write!(f, "{}", name)
+        write!(f, "{}\t{}", self.op_code, self.args)
     }
 }
 
 impl fmt::Display for X64Assembly {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: write display code for either label or instruction
-        let name = match self {
-            X64Assembly::Label(label) => format!("{}:", label),
-            X64Assembly::Instruction(instruction) => format!("    {}", instruction),
-        };
-        write!(f, "{}", name)
+        match self {
+            X64Assembly::Label(l) => write!(f, "{}:", l),
+            X64Assembly::Instruction(i) => write!(f, "\t{}", i),
+        }
     }
 }
 
 impl fmt::Display for X64Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // HOMEWORK 1: Loop over the assembly in the function, write out
-        // each entry
-        let result = self
-            .instruction_listing
-            .iter()
-            .map(|instruction| format!("{}", instruction))
-            .collect::<Vec<String>>()
-            .join("\n");
-        write!(f, "{}", result)
+        write!(
+            f,
+            "{}",
+            self.instruction_listing
+                .iter()
+                .map(|assem| {
+                    let mut assem = assem.to_string();
+                    assem.push_str("\n");
+                    assem
+                })
+                .collect::<String>()
+        )
     }
 }
