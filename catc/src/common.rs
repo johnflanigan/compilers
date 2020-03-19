@@ -111,6 +111,7 @@ impl fmt::Display for Label {
             Label::PrintlnString => write!(f, "_print_line_string"),
             Label::PrintInt => write!(f, "_print_int"),
             Label::PrintString => write!(f, "_print_string"),
+            Label::Main => write!(f, "_main"),
         }
     }
 }

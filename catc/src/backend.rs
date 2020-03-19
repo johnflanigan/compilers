@@ -219,8 +219,11 @@ fn select_fn(
                             .push(X64SAssembly::Instruction(X64SInstruction {
                                 op_code: X64opCode::Lea,
                                 args: SOperands::Two(
-                                    SOperand::MemoryOffset(X64Value::LabelRef(string_label), X64Register::Rip),
-                                    SOperand::Register(X64Register::Rax)
+                                    SOperand::MemoryOffset(
+                                        X64Value::LabelRef(string_label),
+                                        X64Register::Rip,
+                                    ),
+                                    SOperand::Register(X64Register::Rax),
                                 ),
                             }));
 
@@ -487,7 +490,7 @@ fn select_fn(
                                     },
                                 ));
                             }
-                            InfixOp::Substract => {
+                            InfixOp::Subtract => {
                                 selected_function.body.push(X64SAssembly::Instruction(
                                     X64SInstruction {
                                         op_code: X64opCode::Movq,

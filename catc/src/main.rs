@@ -1,85 +1,40 @@
-mod common;
+/* Data Structures */
+pub mod common;
 
 #[macro_use]
-mod x64;
+pub mod lir;
 
-mod lir;
+#[macro_use]
+pub mod x64;
 
-mod backend;
+#[macro_use]
+pub mod x64s;
 
-mod x64s;
+pub mod backend;
 
-use crate::common::{Comparison, ComparisonType, Label, LabelGenerator, SymbolGenerator};
+pub mod source_grammar;
 
-use crate::lir::{LIRAssembly, LIRFunction, LIRInstruction, LIRProgram};
+pub mod lowering;
 
-//use crate::simple_lir_to_x64::compile;
+pub mod check_type;
 
-use crate::backend::compile;
+pub mod checked_grammar;
 
-use std::collections::HashMap;
+#[cfg(test)]
+pub mod test_type_check;
 
-macro_rules! linst {
-    ($data: expr) => {
-        LIRAssembly::Instruction($data)
-    };
-}
+use crate::checked_grammar::CheckedProgram;
+
+use crate::lowering::lower;
+
+extern crate ron;
 
 fn main() {
-    use LIRInstruction::*;
+    let programs = r##"[(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(2):Void,(1):Str,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Negate(exp:Sequence(sequence:[Infix(left:Infix(left:IntLit(value:9,),op:Add,right:Infix(left:IntLit(value:10,),op:Multiply,right:IntLit(value:10,),),),op:Subtract,right:Sequence(sequence:[Infix(left:IntLit(value:9,),op:Divide,right:IntLit(value:10,),),],),),],),),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{},types:{(2):Void,(0):Int,(1):Str,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Sequence(sequence:[],),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{(uid:0,):(3),},types:{(1):Str,(3):Int,(0):Int,(2):Void,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:For(id:(uid:0,),for_exp:IntLit(value:13,),to_exp:IntLit(value:15,),do_exp:Break,),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{},types:{(0):Int,(1):Str,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:While(while_exp:IntLit(value:1,),do_exp:Break,),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{},types:{(1):Str,(0):Int,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:While(while_exp:IntLit(value:0,),do_exp:Sequence(sequence:[],),),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{(uid:0,):(3),},types:{(2):Void,(0):Int,(1):Str,(3):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:For(id:(uid:0,),for_exp:IntLit(value:0,),to_exp:IntLit(value:10,),do_exp:Sequence(sequence:[],),),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{(uid:0,):(3),},types:{(1):Str,(0):Int,(2):Void,(3):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:For(id:(uid:0,),for_exp:IntLit(value:11,),to_exp:IntLit(value:10,),do_exp:Sequence(sequence:[],),),),],),(function_symbols:{Main:(return_type:(2),arguments:[],),},symbol_table:{},types:{(0):Int,(1):Str,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:IfThen(if_exp:Infix(left:IntLit(value:2,),op:LessThan,right:IntLit(value:10,),),then_exp:Sequence(sequence:[],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(2):Void,(0):Int,(1):Str,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:IfThenElse(if_exp:Infix(left:IntLit(value:2,),op:LessThan,right:IntLit(value:10,),),then_exp:IntLit(value:2,),else_exp:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(1):Str,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:IfThenElse(if_exp:Infix(left:IntLit(value:2,),op:GreaterThan,right:IntLit(value:10,),),then_exp:IntLit(value:2,),else_exp:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(1):Str,(2):Void,(0):Int,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:10,),op:LessThan,right:IntLit(value:11,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(2):Void,(1):Str,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:10,),op:LessThanEqual,right:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(1):Str,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:11,),op:GreaterThan,right:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(1):Str,(0):Int,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:10,),op:GreaterThanEqual,right:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(2):Void,(1):Str,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:10,),op:Equal,right:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(0):Int,(1):Str,(2):Void,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Infix(left:IntLit(value:10,),op:NotEqual,right:IntLit(value:10,),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{},types:{(1):Str,(2):Void,(0):Int,},gen_sym:(next_uid:0,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:IntLit(value:2147483647,),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(0),},types:{(0):Int,(2):Void,(1):Str,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:IntLit(value:0,),),],in_exp:LValue(lvalue:Id(name:(uid:0,),),),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(3),},types:{(1):Str,(0):Int,(2):Void,(3):Array((0)),},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:ArrayCreate(length:IntLit(value:10,),initial_value:IntLit(value:20,),),),],in_exp:LValue(lvalue:Subscript(array:Id(name:(uid:0,),),index:IntLit(value:9,),),),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(3),(uid:1,):(4),},types:{(1):Str,(0):Int,(4):Int,(2):Void,(3):Array((0)),},gen_sym:(next_uid:2,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:ArrayCreate(length:IntLit(value:10,),initial_value:IntLit(value:2,),),),],in_exp:Sequence(sequence:[For(id:(uid:1,),for_exp:IntLit(value:1,),to_exp:IntLit(value:9,),do_exp:Sequence(sequence:[Assign(left:Subscript(array:Id(name:(uid:0,),),index:LValue(lvalue:Id(name:(uid:1,),),),),right:Infix(left:LValue(lvalue:Subscript(array:Id(name:(uid:0,),),index:Infix(left:LValue(lvalue:Id(name:(uid:1,),),),op:Subtract,right:IntLit(value:1,),),),),op:Add,right:LValue(lvalue:Subscript(array:Id(name:(uid:0,),),index:LValue(lvalue:Id(name:(uid:1,),),),),),),),],),),LValue(lvalue:Subscript(array:Id(name:(uid:0,),),index:IntLit(value:9,),),),],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(3),},types:{(2):Void,(1):Str,(3):Record([("i",(0),),("j",(0),),]),(0):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:RecordCreate(fields:[("i",IntLit(value:15,),),("j",IntLit(value:5,),),],),),],in_exp:Sequence(sequence:[Assign(left:FieldExp(record:Id(name:(uid:0,),),field:"j",),right:Infix(left:LValue(lvalue:FieldExp(record:Id(name:(uid:0,),),field:"i",),),op:Add,right:LValue(lvalue:FieldExp(record:Id(name:(uid:0,),),field:"j",),),),),LValue(lvalue:FieldExp(record:Id(name:(uid:0,),),field:"j",),),],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(0),},types:{(1):Str,(2):Void,(0):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:IntLit(value:40,),),],in_exp:Sequence(sequence:[Infix(left:Infix(left:LValue(lvalue:Id(name:(uid:0,),),),op:LessThan,right:IntLit(value:50,),),op:And,right:Sequence(sequence:[Assign(left:Id(name:(uid:0,),),right:IntLit(value:10,),),IntLit(value:0,),],),),LValue(lvalue:Id(name:(uid:0,),),),],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(0),},types:{(1):Str,(2):Void,(0):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:IntLit(value:40,),),],in_exp:Sequence(sequence:[Infix(left:Infix(left:LValue(lvalue:Id(name:(uid:0,),),),op:GreaterThan,right:IntLit(value:50,),),op:And,right:Sequence(sequence:[Assign(left:Id(name:(uid:0,),),right:IntLit(value:10,),),IntLit(value:0,),],),),LValue(lvalue:Id(name:(uid:0,),),),],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(0),},types:{(2):Void,(1):Str,(0):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:IntLit(value:40,),),],in_exp:Sequence(sequence:[Infix(left:Infix(left:LValue(lvalue:Id(name:(uid:0,),),),op:LessThan,right:IntLit(value:50,),),op:Or,right:Sequence(sequence:[Assign(left:Id(name:(uid:0,),),right:IntLit(value:10,),),IntLit(value:0,),],),),LValue(lvalue:Id(name:(uid:0,),),),],),),),],),(function_symbols:{Main:(return_type:(0),arguments:[],),},symbol_table:{(uid:0,):(0),},types:{(1):Str,(2):Void,(0):Int,},gen_sym:(next_uid:1,),gen_label:(next_uid:0,),dec_list:[FunDec(name:Main,args:[],body:Let(let_exp:[VarDec(name:(uid:0,),value:IntLit(value:40,),),],in_exp:Sequence(sequence:[Infix(left:Infix(left:LValue(lvalue:Id(name:(uid:0,),),),op:GreaterThan,right:IntLit(value:50,),),op:Or,right:Sequence(sequence:[Assign(left:Id(name:(uid:0,),),right:IntLit(value:10,),),IntLit(value:0,),],),),LValue(lvalue:Id(name:(uid:0,),),),],),),),],),]"##;
 
-    let mut sg = SymbolGenerator::new();
-    let mut lg = LabelGenerator::new();
+    let vec_of_programs: Vec<CheckedProgram> = ron::de::from_str(programs).unwrap();
 
-    let i1 = sg.new_symbol();
-    let i2 = sg.new_symbol();
-    let s = sg.new_symbol();
-    let void = sg.new_symbol();
-
-    let skip_assignment = lg.new_label();
-
-    let example = LIRProgram {
-        main_function: LIRFunction {
-            arguments: vec![],
-            locals: vec![void, i1, i2, s],
-            return_symbol: i1,
-            instruction_listing: vec![
-                linst!(IntLit {
-                    assign_to: i1,
-                    value: 1
-                }),
-                linst!(IntLit {
-                    assign_to: i2,
-                    value: 1
-                }),
-                linst!(JumpC {
-                    to: skip_assignment,
-                    condition: Comparison {
-                        left: i1,
-                        c: ComparisonType::NotEqual,
-                        right: i2
-                    }
-                }),
-                linst!(StringLit {
-                    assign_to: s,
-                    value: "condition false".to_string()
-                }),
-                linst!(Call {
-                    assign_to: void,
-                    function_name: Label::PrintlnString,
-                    args: vec![s]
-                }),
-                LIRAssembly::Label(skip_assignment),
-            ],
-        },
-        other_functions: HashMap::new(),
-    };
-
-    //let serialized_lir = serde_json::to_string_pretty(&example).unwrap();
-    let compiled_example = compile(example, lg, sg);
-    //let serialized_x86 = serde_json::to_string_pretty(&compiled_example).unwrap();
-
-    //print!("serialized_lir:\n{}\n", serialized_lir);
-    //print!("serialized_x86:\n{}\n", serialized_x86);
-    print!("{}\n", compiled_example);
+    for program in vec_of_programs {
+        lower(program);
+    }
 }
