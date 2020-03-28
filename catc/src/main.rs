@@ -27,6 +27,8 @@ use crate::checked_grammar::CheckedProgram;
 
 use crate::lowering::lower;
 
+use crate::backend::compile;
+
 extern crate ron;
 
 fn main() {
@@ -35,6 +37,12 @@ fn main() {
     let vec_of_programs: Vec<CheckedProgram> = ron::de::from_str(programs).unwrap();
 
     for program in vec_of_programs {
-        lower(program);
+        // Copy for later use
+        let gen_label = program.gen_label.clone();
+        let gen_sym = program.gen_sym.clone();
+
+        let lir_program = lower(program);
+        let x64_program = compile(lir_program, gen_label, gen_sym);
+        print!("{}\n", x64_program);
     }
 }
