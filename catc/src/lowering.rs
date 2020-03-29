@@ -40,7 +40,7 @@ pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
 // Returns a sequence of LIR instructions and the symbol that will hold the result of those computations
 fn lower_exp(
     checked_exp: CheckedExp,
-    lowering_global: LoweringGlobal,
+    lowering_global: &mut LoweringGlobal,
     exit_label: Option<Label>,
 ) -> (Vec<LIRAssembly>, Symbol) {
     match checked_exp {
@@ -84,16 +84,19 @@ fn lower_exp(
         CheckedExp::LValue { lvalue } => lower_lvalue_value(lvalue, lowering_global, None),
         CheckedExp::Sequence { sequence } => {
             let mut sequence_assembly = vec![];
-
-            let result_symbol = lowering_global.gen_sym.new_symbol();
+            let mut sequence_symbols = vec![];
 
             for exp in sequence {
                 let (mut exp_assembly, exp_symbol) = lower_exp(exp, lowering_global, None);
                 sequence_assembly.append(&mut exp_assembly);
-                result_symbol = exp_symbol;
+                sequence_symbols.push(exp_symbol);
+                // result_symbol = exp_symbol;
             }
 
-            (sequence_assembly, result_symbol)
+            let final_symbol = sequence_symbols
+                .pop()
+                .unwrap_or(lowering_global.gen_sym.new_symbol());
+            (sequence_assembly, final_symbol)
         }
         CheckedExp::Negate { exp } => {
             let (mut exp_assembly, exp_symbol) = lower_exp(*exp, lowering_global, None);
@@ -196,7 +199,7 @@ fn lower_exp(
             record_assembly.push(call_assembly);
 
             for (pos, (_, exp)) in fields.iter().enumerate() {
-                let (mut exp_assembly, exp_symbol) = lower_exp(*exp, lowering_global, None);
+                let (mut exp_assembly, exp_symbol) = lower_exp(exp.clone(), lowering_global, None);
                 record_assembly.append(&mut exp_assembly);
 
                 // Geneate offset symbol
@@ -455,7 +458,8 @@ fn lower_exp(
             for_loop_assembly.push(one_assembly);
 
             // Lower for_exp, for_symbol is current i
-            let (mut for_assembly, for_symbol) = lower_exp(*for_exp, lowering_global, Some(end_label));
+            let (mut for_assembly, for_symbol) =
+                lower_exp(*for_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut for_assembly);
 
             // Emit for loop label
@@ -562,7 +566,7 @@ fn lower_exp(
 
 fn lower_lvalue_value(
     checked_lvalue: CheckedLValue,
-    lowering_global: LoweringGlobal,
+    lowering_global: &mut LoweringGlobal,
     exit_label: Option<Label>,
 ) -> (Vec<LIRAssembly>, Symbol) {
     match checked_lvalue {
@@ -585,7 +589,8 @@ fn lower_lvalue_value(
             let symbol = lowering_global.gen_sym.new_symbol();
 
             // Get assembly and symbol for checked
-            let (mut array_assembly, array_symbol) = lower_lvalue_value(*array, lowering_global, None);
+            let (mut array_assembly, array_symbol) =
+                lower_lvalue_value(*array, lowering_global, None);
             subscript_assembly.append(&mut array_assembly);
 
             // Geneate index symbol
