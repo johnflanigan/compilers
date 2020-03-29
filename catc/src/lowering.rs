@@ -242,9 +242,135 @@ fn lower_exp(checked_exp: CheckedExp) -> (Vec<LIRAssembly>, Symbol) {
             if_exp,
             then_exp,
             else_exp,
-        } => {}
+        } => {
+            let if_then_else_assembly = vec![];
+
+            // Generate true, false, and end labels
+            let true_label = type_checked_program.gen_label.new_label();
+            let false_label = type_checked_program.gen_label.new_label();
+            let end_label = type_checked_program.gen_label.end_label();
+
+            // Lower condition
+            let (if_assembly, if_symbol) = lower_exp(if_exp);
+            if_then_else_assembly.append(if_assembly);
+
+            // Create zero for use in comparison
+            let zero_symbol = type_checked_program.gen_sym.new_symbol();
+            let zero_instruction = LIRInstruction::IntLit {
+                location: zero_symbol,
+                offset: pos,
+            };
+            let zero_assembly = LIRAssembly::Instruction { zero_instruction };
+            if_then_else_assembly.push(zero_assembly);
+
+            // Create not zero comparison
+            let not_zero_comparison = Comparison {
+                c: ComparisonType::NotEqual,
+                left: if_symbol,
+                right: zero_symbol,
+            };
+
+            // Jump true conditional
+            let jump_true_instruction = LIRInstruction::JumpC {
+                to: true_label,
+                comparison: not_zero_comparison,
+            };
+            let jump_true_assembly = LIRAssembly::Instruction {
+                jump_true_instruction,
+            };
+            if_then_else_assembly.push(jump_true_assembly);
+
+            // Create zero comparison
+            let zero_comparison = Comparison {
+                c: ComparisonType::NotEqual,
+                left: if_symbol,
+                right: zero_symbol,
+            };
+
+            // Jump false conditional
+            let jump_false_instruction = LIRInstruction::JumpC {
+                to: false_label,
+                comparison: zero_comparison,
+            };
+            let jump_false_assembly = LIRAssembly::Instruction {
+                jump_false_instruction,
+            };
+            if_then_else_assembly.push(jump_false_assembly);
+
+            // Emit true label
+            let true_label_assembly = LIRAssembly::Label { true_label };
+            if_then_else_assembly.push(true_label_assembly);
+
+            // Lower then branch
+            let (then_assembly, then_symbol) = lower_exp(then_exp);
+            if_then_else_assembly.append(then_assembly);
+
+            // Jump end label
+            let jump_instruction = LIRInstruction::Jump { to: end_label };
+            let jump_assembly = LIRAssembly::Instruction { jump_instruction };
+            if_then_else_assembly.push(jump_assembly);
+
+            // Emit false label
+            let false_label_assembly = LIRAssembly::Label { false_label };
+            if_then_else_assembly.push(false_label_assembly);
+
+            // Lower else branch
+            let (else_assembly, else_symbol) = lower_exp(else_exp);
+            if_then_else_assembly.append(else_assembly);
+
+            // Emit end label
+            let end_label_assembly = LIRAssembly::Label { end_label };
+            if_then_else_assembly.push(end_label_assembly);
+
+            // TODO unsure what to return here as a symbol
+            (if_then_else_assembly, None)
+        }
         CheckedExp::IfThen { if_exp, then_exp } => {
-            unimplemented!();
+            let if_then_assembly = vec![];
+
+            // Generate end label
+            let end_label = type_checked_program.gen_label.end_label();
+
+            // Lower condition
+            let (if_assembly, if_symbol) = lower_exp(if_exp);
+            if_then_assembly.append(if_assembly);
+
+            // Create zero for use in comparison
+            let zero_symbol = type_checked_program.gen_sym.new_symbol();
+            let zero_instruction = LIRInstruction::IntLit {
+                location: zero_symbol,
+                offset: pos,
+            };
+            let zero_assembly = LIRAssembly::Instruction { zero_instruction };
+            if_then_else_assembly.push(zero_assembly);
+
+            // Create zero comparison
+            let zero_comparison = Comparison {
+                c: ComparisonType::NotEqual,
+                left: if_symbol,
+                right: zero_symbol,
+            };
+
+            // Jump false conditional
+            let jump_end_instruction = LIRInstruction::JumpC {
+                to: end_label,
+                comparison: zero_comparison,
+            };
+            let jump_end_assembly = LIRAssembly::Instruction {
+                jump_end_instruction,
+            };
+            if_then_assembly.push(jump_end_assembly);
+
+            // Lower then branch
+            let (then_assembly, then_symbol) = lower_exp(then_exp);
+            if_then_assembly.append(then_assembly);
+
+            // Emit end label
+            let end_label_assembly = LIRAssembly::Label { end_label };
+            if_then_assembly.push(end_label_assembly);
+
+            // TODO unsure what to return here as a symbol
+            (if_then_assembly, None)
         }
         CheckedExp::While { while_exp, do_exp } => {
             unimplemented!();
@@ -258,7 +384,7 @@ fn lower_exp(checked_exp: CheckedExp) -> (Vec<LIRAssembly>, Symbol) {
             unimplemented!();
         }
         CheckedExp::Let { let_exp, in_exp } => {
-            // TODO unclear what let does in language
+            // TODO unclear what let does in cat language
             unimplemented!();
         }
         CheckedExp::Call {
