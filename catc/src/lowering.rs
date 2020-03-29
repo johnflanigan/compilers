@@ -44,27 +44,29 @@ fn lower_exp(checked_exp: CheckedExp) -> (Vec<LIRAssembly>, Symbol) {
         }
         CheckedExp::IntLit { value } => {
             // Create temporary symbol
-            let symbol = type_checked_program.gen_sym.new_symbol();
+            let int_lit_symbol = type_checked_program.gen_sym.new_symbol();
             // Assign Int to temporary symbol
-            let instruction = LIRInstruction::IntLit {
-                assign_to: symbol,
+            let int_lit_instruction = LIRInstruction::IntLit {
+                assign_to: int_lit_symbol,
                 value: value,
             };
-            let assembly = LIRAssembly::Instruction { instruction };
+            let int_lit_assembly = LIRAssembly::Instruction {
+                int_lit_instruction,
+            };
             // Return assembly instruction and temporary symbol
-            (!vec[assembly], symbol)
+            (!vec[int_lit_assembly], int_lit_symbol)
         }
         CheckedExp::StringLit { value } => {
             // Create temporary symbol
-            let symbol = type_checked_program.gen_sym.new_symbol();
+            let string_symbol = type_checked_program.gen_sym.new_symbol();
             // Assign String to temporary symbol
-            let instruction = LIRInstruction::StringLit {
-                assign_to: symbol,
+            let string_instruction = LIRInstruction::StringLit {
+                assign_to: string_symbol,
                 value: value,
             };
-            let assembly = LIRAssembly::Instruction { instruction };
+            let string_assembly = LIRAssembly::Instruction { string_instruction };
             // Return assembly instruction and temporary symbol
-            (!vec[assembly], symbol)
+            (!vec[string_assembly], string_symbol)
         }
         CheckedExp::LValue { lvalue } => match lvalue {
             // These cases should be treated as loading values into temporary symbols
@@ -91,60 +93,150 @@ fn lower_exp(checked_exp: CheckedExp) -> (Vec<LIRAssembly>, Symbol) {
             unimplemented!();
         }
         CheckedExp::Negate { exp } => {
-            let (lir_assembly, symbol) = lower_exp(exp);
+            let (exp_assembly, exp_symbol) = lower_exp(exp);
 
             // Create temporary symbol
-            let temp_symbol = type_checked_program.gen_sym.new_symbol();
+            let negate_symbol = type_checked_program.gen_sym.new_symbol();
 
             // Negate returned symbol
-            let instruction = LIRInstruction::Negate {
+            let lir_negate_instruction = LIRInstruction::Negate {
                 assign_to: temp_symbol,
                 value: symbol,
             };
+            let lir_negate_assembly = LIRAssembly::Instruction {
+                lir_negate_instruction,
+            };
 
-            let assembly = LIRAssembly::Instruction { instruction };
-            lir_assembly.push(assembly);
+            let negate_assembly = vec![];
+            negate_assembly
+                .append(exp_assembly)
+                .append(lir_negate_assembly);
 
-            (lir_assembly, temp_symbol)
+            (negate_assembly, negate_symbol)
         }
         CheckedExp::Infix { left, op, right } => {
-            // Call lower_exp on the left-hand operand to get sequence1 and symbol1
-            let (lir_assembly_1, symbol_1) = lower_exp(left);
-            // Call lower_exp on the right-hand operand to get sequence2 and symbol2
-            let (lir_assembly_2, symbol_2) = lower_exp(right);
+            // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
+            let (left_assembly, left_symbol) = lower_exp(left);
+            // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
+            let (right_assembly, right_symbol) = lower_exp(right);
 
             // Generate a new temp symbol3
-            let symbol_3 = type_checked_program.gen_sym.new_symbol();
+            let infix_symbol = type_checked_program.gen_sym.new_symbol();
 
             // Concatenate sequence1 + sequence2 + BinaryOp(symbol3, symbol1, Add, symbol2)
-            let instruction = LIRInstruction::BinaryOp {
-                assign_to: symbol_3,
-                left: symbol_1,
+            let binary_op_instruction = LIRInstruction::BinaryOp {
+                assign_to: infix_symbol,
+                left: left_symbol,
                 op: op,
-                right: symbol_2,
+                right: right_symbol,
             };
-            let assembly = LIRAssembly::Instruction { instruction };
+            let binary_op_assembly = LIRAssembly::Instruction {
+                binary_op_instruction,
+            };
 
-            let lir_assembly_3 = vec![];
-            lir_assembly_3
-                .append(lir_assembly_1)
-                .append(lir_assembly_2)
-                .append(assembly);
+            let infix_assembly = vec![];
+            infix_assembly
+                .append(left_assembly)
+                .append(right_assembly)
+                .append(binary_op_assembly);
 
             // Return the new sequence and symbol3
-            (lir_assembly_3, symbol_3)
+            (infix_assembly, infix_symbol)
         }
         CheckedExp::ArrayCreate {
             length,
             initial_value,
         } => {
-            unimplemented!();
+            // Create new symbol
+            let array_symbol = type_checked_program.gen_sym.new_symbol();
+
+            // Load length and initial_value expressions into temporary symbols
+            let (length_assembly, length_symbol) = lower_exp(length);
+            let (initial_value_assembly, initial_value_symbol) = lower_exp(initial_value);
+
+            // Call allocate_and_memset and set result to new symbol
+            let call_instruction = LIRInstruction::Call {
+                assign_to: array_symbol,
+                function_name: Label::AllocateAndMemset,
+                args: vec![length_symbol, initial_value_symbol],
+            };
+            let call_assembly = LIRAssembly::Instruction { call_instruction };
+
+            // Append call instruction
+            let array_assembly = vec![];
+            array_assembly
+                .append(length_assembly)
+                .append(initial_value_assembly)
+                .append(call_assembly);
+
+            // Return the result
+            (array_assembly, array_symbol)
         }
         CheckedExp::RecordCreate { fields } => {
-            unimplemented!();
+            // Create new symbol for record
+            let record_symbol = type_checked_program.gen_sym.new_symbol();
+
+            // Allocate length of fields vector and set record to address
+            let call_instruction = LIRInstruction::Call {
+                assign_to: record_symbol,
+                function_name: Label::AllocateAndMemset,
+                args: vec![fields.len()],
+            };
+            let call_assembly = LIRAssembly::Instruction { call_instruction };
+
+            let record_assembly = vec![call_assembly];
+
+            for (pos, (_, exp)) in fields.iter().enumerate() {
+                let (exp_assembly, exp_symbol) = lower_exp(exp);
+                record_assembly.append(exp_assembly);
+
+                // Geneate offset symbol
+                let offset_symbol = type_checked_program.gen_sym.new_symbol();
+
+                // Set offset equal to position
+                let offset_instruction = LIRInstruction::IntLit {
+                    location: offset_symbol,
+                    offset: pos,
+                };
+                let offset_assembly = LIRAssembly::Instruction { offset_instruction };
+                record_assembly.push(offset_assembly);
+
+                // Set record field to exp
+                let store_to_memory_at_offset_instruction = LIRInstruction::StoreToMemoryAtOffset {
+                    location: record_symbol,
+                    offset: pos,
+                    value: exp_symbol,
+                };
+                let store_to_memory_at_offset_assembly = LIRAssembly::Instruction {
+                    store_to_memory_at_offset_instruction,
+                };
+                record_assembly.push(store_to_memory_at_offset_assembly);
+            }
+
+            (record_assembly, record_symbol)
         }
         CheckedExp::Assign { left, right } => {
-            unimplemented!();
+            // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
+            let (left_assembly, left_symbol) = lower_exp(left);
+
+            // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
+            let (right_assembly, right_symbol) = lower_exp(right);
+
+            let lir_assign_instruction = LIRInstruction::Assign {
+                assign_to: left_symbol,
+                id: right_symbol,
+            };
+            let lir_assign_assembly = LIRAssembly::Instruction {
+                lir_assign_instruction,
+            };
+
+            let assign_assembly = vec![];
+            assign_assembly
+                .append(left_assembly)
+                .append(right_assembly)
+                .push(lir_assign_assembly);
+
+            (assign_assembly, left_symbol)
         }
         CheckedExp::IfThenElse {
             if_exp,
@@ -166,6 +258,7 @@ fn lower_exp(checked_exp: CheckedExp) -> (Vec<LIRAssembly>, Symbol) {
             unimplemented!();
         }
         CheckedExp::Let { let_exp, in_exp } => {
+            // TODO unclear what let does in language
             unimplemented!();
         }
         CheckedExp::Call {
