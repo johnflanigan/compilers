@@ -432,7 +432,11 @@ fn lower_exp(
             to_exp,
             do_exp,
         } => {
-            let for_assembly = vec![];
+            let for_loop_assembly = vec![];
+
+            // Generate for loop, end labels
+            let for_loop_label = lowering_global.gen_label.new_label();
+            let end_label = lowering_global.gen_label.new_label();
 
             // Create one for use incrementing
             let one_symbol = lowering_global.gen_sym.new_symbol();
@@ -441,27 +445,59 @@ fn lower_exp(
                 value: 1,
             };
             let one_assembly = LIRAssembly::Instruction(one_instruction);
-            for_assembly.push(one_assembly);
+            for_loop_assembly.push(one_assembly);
 
             // Lower for_exp, for_symbol is current i
+            let (for_assembly, for_symbol) = lower_exp(*for_exp, lowering_global);
+            for_loop_assembly.append(&mut for_assembly);
 
-            // Label L1
+            // Emit for loop label
+            let for_loop_label_assembly = LIRAssembly::Label(for_loop_label);
+            for_loop_assembly.push(for_loop_label_assembly);
 
-            // Lower to_exp,
+            // Lower to_exp
+            let (to_assembly, to_symbol) = lower_exp(*to_exp, lowering_global);
+            for_loop_assembly.append(&mut to_assembly);
 
-            // JumpC L2, for_symbol == to_symbol
             // Jump to end label if for_symbol == to_symbol
+            let equal_to_comparison = Comparison {
+                c: ComparisonType::Equal,
+                left: for_symbol,
+                right: to_symbol,
+            };
+
+            // Jump to do label if condition != 0
+            let jump_end_instruction = LIRInstruction::JumpC {
+                to: end_label,
+                condition: equal_to_comparison,
+            };
+            let jump_end_assembly = LIRAssembly::Instruction(jump_end_instruction);
+            for_loop_assembly.push(jump_end_assembly);
 
             // Lower do_exp
+            let (do_assembly, do_symbol) = lower_exp(*do_exp, lowering_global);
+            for_loop_assembly.append(&mut do_assembly);
 
             // Increment for_symbol
+            let increment_instruction = LIRInstruction::BinaryOp {
+                assign_to: for_symbol,
+                left: for_symbol,
+                op: InfixOp::Add,
+                right: one_symbol,
+            };
+            let increment_assembly = LIRAssembly::Instruction(increment_instruction);
+            for_loop_assembly.push(increment_assembly);
 
-            // Jump L1
+            // Jump to top of for loop
+            let jump_for_loop_instruction = LIRInstruction::Jump { to: for_loop_label };
+            let jump_for_loop_assembly = LIRAssembly::Instruction(jump_for_loop_instruction);
+            for_loop_assembly.push(jump_for_loop_assembly);
 
-            // Label L2
             // Emit end label
+            let end_label_assembly = LIRAssembly::Label(end_label);
+            for_loop_assembly.push(end_label_assembly);
 
-            unimplemented!();
+            (for_loop_assembly, do_symbol)
         }
         CheckedExp::Let { let_exp, in_exp } => {
             unimplemented!();
