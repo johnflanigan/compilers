@@ -12,29 +12,49 @@ pub struct LoweringGlobal {
 
 #[allow(dead_code, unused_variables)]
 pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
-    // for checked_top_level_dec in type_checked_program.dec_list {
-    //     // Create LIR function
-    //     let lir_function = LIRFunction {
-    //         locals: vec![],
-    //         arguments: vec![],
-    //         return_symbol: None,
-    //         instruction_listing: vec![],
-    //     };
+    let mut lowering_global = LoweringGlobal {
+        gen_sym: type_checked_program.gen_sym,
+        gen_label: type_checked_program.gen_label,
+    };
 
-    //     match checked_top_level_dec {
-    //         CheckedTopLevelDec::FunDec { name, args, body } => {
-    //             // Lower expression
-    //             let (lir_assembly, symbol) = lower_exp(checked_exp: body);
+    // Create LIRProgram fields
+    // TODO fix this dummy function
+    let mut main_function = LIRFunction {
+        locals: vec![],
+        arguments: vec![],
+        return_symbol: lowering_global.gen_sym.new_symbol(),
+        instruction_listing: vec![],
+    };
+    let mut other_functions = HashMap::new();
 
-    //             // Create LIR function
+    for checked_top_level_dec in type_checked_program.dec_list {
+        match checked_top_level_dec {
+            CheckedTopLevelDec::FunDec { name, args, body } => {
+                // Lower expression
+                let (body_assembly, return_symbol) = lower_exp(*body, &mut lowering_global, None);
 
-    //             // Update LIR program
-    //         }
-    //     }
-    // }
+                // Create LIR function
+                let lir_function = LIRFunction {
+                    locals: vec![],
+                    arguments: args.try_into().unwrap(),
+                    return_symbol: return_symbol,
+                    instruction_listing: body_assembly,
+                };
 
-    // Return LIR program
-    unimplemented!()
+                // Update LIR program
+                if name == Label::Main {
+                    main_function = lir_function;
+                } else {
+                    other_functions.insert(name, lir_function);
+                }
+            }
+        }
+    }
+
+    LIRProgram {
+        main_function: main_function,
+        other_functions: other_functions,
+    }
 }
 
 // Returns a sequence of LIR instructions and the symbol that will hold the result of those computations
