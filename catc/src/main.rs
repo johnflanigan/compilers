@@ -36,12 +36,15 @@ fn main() {
 
     let vec_of_programs: Vec<CheckedProgram> = ron::de::from_str(programs).unwrap();
 
-    for program in vec_of_programs {
+    for (index, program) in vec_of_programs.iter().enumerate() {
+        // Print test number to locate problem tests
+        print!("Test: {}", index + 1);
+
         // Copy for later use
         let gen_label = program.gen_label.clone();
         let gen_sym = program.gen_sym.clone();
 
-        let lir_program = lower(program);
+        let lir_program = lower(program.clone());
         let x64_program = compile(lir_program, gen_label, gen_sym);
         print!("{}\n", x64_program);
     }

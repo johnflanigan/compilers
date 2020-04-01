@@ -146,21 +146,85 @@ fn lower_exp(
             // Generate a new temp symbol3
             let infix_symbol = lowering_global.gen_sym.new_symbol();
 
-            // Concatenate sequence1 + sequence2 + BinaryOp(symbol3, symbol1, Add, symbol2)
-            let binary_op_instruction = LIRInstruction::BinaryOp {
-                assign_to: infix_symbol,
-                left: left_symbol,
-                op: op.try_into().unwrap(),
-                right: right_symbol,
-            };
-            let binary_op_assembly = LIRAssembly::Instruction(binary_op_instruction);
-
             let mut infix_assembly = vec![];
             infix_assembly.append(&mut left_assembly);
             infix_assembly.append(&mut right_assembly);
-            infix_assembly.push(binary_op_assembly);
 
-            // Return the new sequence and symbol3
+            // Try converting InfixSourceOp into InfixOp
+            match op.try_into() {
+                Ok(infix_op) => {
+                    // Concatenate sequence1 + sequence2 + BinaryOp(symbol3, symbol1, Add, symbol2)
+                    let binary_op_instruction = LIRInstruction::BinaryOp {
+                        assign_to: infix_symbol,
+                        left: left_symbol,
+                        op: infix_op,
+                        right: right_symbol,
+                    };
+
+                    let binary_op_assembly = LIRAssembly::Instruction(binary_op_instruction);
+
+                    infix_assembly.push(binary_op_assembly);
+                },
+                Err(_) => {
+                    // Generate true, false, and end labels
+                    let true_label = lowering_global.gen_label.new_label();
+                    let false_label = lowering_global.gen_label.new_label();
+                    let end_label = lowering_global.gen_label.new_label();
+
+                    // Jump to true of comparison is true
+                    let jump_true_instruction = LIRInstruction::JumpC {
+                        to: true_label,
+                        condition: Comparison {
+                            c: op.try_into().unwrap(),
+                            left: left_symbol,
+                            right: right_symbol,
+                        },
+                    };
+                    let jump_true_assembly = LIRAssembly::Instruction(jump_true_instruction);
+                    infix_assembly.push(jump_true_assembly);
+
+                    // Else, jump to false
+                    let jump_false_instruction = LIRInstruction::Jump {
+                        to: false_label,
+                    };
+                    let jump_false_assembly = LIRAssembly::Instruction(jump_false_instruction);
+                    infix_assembly.push(jump_false_assembly);
+
+                    // Emit true label
+                    let true_label_assembly = LIRAssembly::Label(true_label);
+                    infix_assembly.push(true_label_assembly);
+
+                    // Assign 1 to infix_symbol
+                    let one_instruction = LIRInstruction::IntLit {
+                        assign_to: infix_symbol,
+                        value: 1,
+                    };
+                    let one_assembly = LIRAssembly::Instruction(one_instruction);
+                    infix_assembly.push(one_assembly);
+
+                    // Jump end label
+                    let jump_end_instruction = LIRInstruction::Jump { to: end_label };
+                    let jump_end_assembly = LIRAssembly::Instruction(jump_end_instruction);
+                    infix_assembly.push(jump_end_assembly);
+
+                    // Emit false label
+                    let false_label_assembly = LIRAssembly::Label(true_label);
+                    infix_assembly.push(false_label_assembly);
+
+                    // Assign 0 to infix_symbol
+                    let zero_instruction = LIRInstruction::IntLit {
+                        assign_to: infix_symbol,
+                        value: 0,
+                    };
+                    let zero_assembly = LIRAssembly::Instruction(zero_instruction);
+                    infix_assembly.push(zero_assembly);
+
+                    // Emit end label
+                    let end_label_assembly = LIRAssembly::Label(end_label);
+                    infix_assembly.push(end_label_assembly);
+                },
+            }
+
             (infix_assembly, infix_symbol)
         }
         CheckedExp::ArrayCreate {
