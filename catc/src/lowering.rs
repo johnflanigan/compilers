@@ -164,7 +164,7 @@ fn lower_exp(
                     let binary_op_assembly = LIRAssembly::Instruction(binary_op_instruction);
 
                     infix_assembly.push(binary_op_assembly);
-                },
+                }
                 Err(_) => {
                     // Generate true, false, and end labels
                     let true_label = lowering_global.gen_label.new_label();
@@ -184,9 +184,7 @@ fn lower_exp(
                     infix_assembly.push(jump_true_assembly);
 
                     // Else, jump to false
-                    let jump_false_instruction = LIRInstruction::Jump {
-                        to: false_label,
-                    };
+                    let jump_false_instruction = LIRInstruction::Jump { to: false_label };
                     let jump_false_assembly = LIRAssembly::Instruction(jump_false_instruction);
                     infix_assembly.push(jump_false_assembly);
 
@@ -222,7 +220,7 @@ fn lower_exp(
                     // Emit end label
                     let end_label_assembly = LIRAssembly::Label(end_label);
                     infix_assembly.push(end_label_assembly);
-                },
+                }
             }
 
             (infix_assembly, infix_symbol)

@@ -1,0 +1,151 @@
+use crate::source_grammar::*;
+use std::str::FromStr;
+use std::collections::VecDeque;
+
+grammar;
+
+// TODO delete this
+pub Term: i32 = {
+    <n:Num> => n,
+    "(" <t:Term> ")" => t,
+};
+
+Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+
+
+// program
+pub Program = {
+    <t:TopLevelDec*> => t
+}
+
+// top_level_dec
+pub TopLevelDec = {
+    "type" <id_1:Id> "=" "array" "of" <id_2:Id> => 
+    "type" <id_1:Id> "=" "{" <f:FieldDec*> "}",
+    "function" <id_1:Id> "(" <f:FormalArg*> ")" "->" <id_2:Id> "{" <exp:Exp+> "}"
+}
+
+// formal_arg
+pub FormalArg = {
+    <id_1:Id> ":" <id_2:Id>
+}
+
+// exp
+pub Exp = {
+    <lvalue:Lvalue> ":=" <exp:Exp>,
+    "if" <exp_1:Exp> "then" <exp_2:Exp>,
+    "while" <exp_1:Exp> "do" <exp_2:Exp>,
+    <id:Id> "[" <exp_1:Exp> "]" of <exp_2:Exp>,
+    "for" <id:Id> ":=" <exp_1:Exp> "to" <exp_2:Exp> "do" <exp_3>,
+    "let" <dec:Dec*> "in" <exp:Exp> "end",
+    <exp1:Exp1>
+}
+
+// exp1
+pub Exp1 = {
+    "if" <exp:Exp> "then" <exp2:Exp2> "else" <exp1:Exp1>,
+    <exp2:Exp2>,
+}
+
+// exp2
+pub Exp2 = {
+    <exp2:Exp2> "or" <exp3:Exp3>,
+    <exp3:Exp3"
+}
+
+// exp3
+pub Exp3 = {
+    <exp3:Exp3> "and" <exp4:Exp4>,
+    <exp4:Exp4>
+}
+
+// exp4
+pub Exp4 = {
+    <exp5:Exp5> "=" <exp5:Exp5>,
+    <exp5:Exp5> "<>" <exp5:Exp5>,
+    <exp5:Exp5> ">" <exp5:Exp5>,
+    <exp5:Exp5> ">=" <exp5:Exp5>,
+    <exp5:Exp5> "<" <exp5:Exp5>,
+    <exp5:Exp5> "<=" <exp5:Exp5>,
+    <exp5:Exp5>
+}
+
+// exp5
+pub Exp5 = {
+    <exp5:Exp5> "+" <exp6:Exp6>,
+    <exp5:Exp5> "-" <exp6:Exp6>,
+    <exp6:Exp6>,
+}
+
+// exp6
+pub Exp6 = {
+    <exp6:Exp6> "*" <exp7:Exp7>,
+    <exp6:Exp6> "/" <exp7:Exp7>,
+    <exp7:Exp7>,
+}
+
+// exp7
+pub Exp7 = {
+    <lvalue:Lvalue>,
+    "break",
+    <int_literal:IntLiteral>,
+    <string_literal:StringLiteral>,
+    <sequence:Sequence>
+    <id:Id> "{" <field_create:FieldCreate*> "}",
+    "-" <exp7:exp7>,
+    <id:Id> "(" <exp:Exp*> ")",
+}
+
+// sequence
+pub Sequence = {
+    "(" <exp:Exp*> ")"
+}
+
+// field_create
+pub FieldCreate = {
+    <id:Id> "=" <exp:Exp>,
+}
+
+// lvalue
+pub LValue = {
+    <id:Id>,
+    <subscript:Subscript>,
+    <field_exp:FieldExp>,
+}
+
+// subscript
+pub Subscript = {
+    <id:Id> "[" <exp:Exp> "]",
+    <subscript:Subscript> "[" <exp:Exp> "]",
+    <field_exp:FieldExp> "[" <exp:Exp> "]"
+}
+
+// field_exp
+pub FieldExp = {
+    <lvalue:LValue> "." <id:Id>
+}
+
+// dec
+pub Dec = {
+    "var" <id_1:Id> ":" <id_2:Id> ":=" <exp:Exp> 
+}
+
+// field_dec
+pub FieldDec = {
+    <id_1:Id> ":" <id_2:Id>
+}
+
+// string_literal
+pub StringLiteral = {
+    r#"[^"]*"#
+}
+
+// id
+pub Id = {
+    r"[a-zA-Z]*"
+}
+
+// int_literal
+pub IntLiteral = {
+    r"[0-9]+"
+}
