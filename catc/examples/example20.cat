@@ -1,0 +1,7 @@
+type intArray = array of int
+function main () -> int {
+    let var a : intArray := intArray [10] of 2 in (
+        for i:= 1 to 9 do (a[i] := a[i-1] + a[i]);
+        a[9]
+    ) end
+}

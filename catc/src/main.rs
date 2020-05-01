@@ -36,7 +36,8 @@ fn main() -> std::io::Result<()> {
         (about: "A compiler for the Cat programming language.")
         (@arg INFILE: +required "The Cat source file to be compiled")
         (@arg OUTFILE: -o --output +takes_value "Sets a custom output file, defaulting to a.s")
-    ).get_matches();
+    )
+    .get_matches();
 
     // Get source file from clargs, read into a string to parse
     let mut source_file = File::open(matches.value_of("INFILE").unwrap())?;
@@ -46,8 +47,11 @@ fn main() -> std::io::Result<()> {
     // Begin compiling!
     let parser = parser::ProgramParser::new();
 
-    let program = parser.parse(&program).expect("There was an error while parsing.");
-    let type_checked_program = type_check(program).expect("There was an error while checking types.");
+    let program = parser
+        .parse(&program)
+        .expect("There was an error while parsing.");
+    let type_checked_program =
+        type_check(program).expect("There was an error while checking types.");
     let (lir_program, label_gen, symbol_gen) = lower(type_checked_program);
     let compiled_program = compile(lir_program, label_gen, symbol_gen);
 

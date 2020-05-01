@@ -1,0 +1,6 @@
+type intArray = array of int
+function main () -> int {
+    let var a : intArray := intArray [10] of 20 in
+        a[9]
+    end
+}

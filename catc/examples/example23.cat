@@ -1,0 +1,6 @@
+function main () -> int {
+    let var a : int := 40 in
+        (a > 50 and (a:= 10; 0);
+        a)
+    end
+}

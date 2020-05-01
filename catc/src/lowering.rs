@@ -11,7 +11,9 @@ pub struct LoweringGlobal {
 }
 
 #[allow(dead_code, unused_variables)]
-pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
+pub fn lower(
+    type_checked_program: CheckedProgram,
+) -> (LIRProgram, LabelGenerator, SymbolGenerator) {
     let mut lowering_global = LoweringGlobal {
         gen_sym: type_checked_program.gen_sym,
         gen_label: type_checked_program.gen_label,
@@ -51,10 +53,16 @@ pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
         }
     }
 
-    LIRProgram {
+    let lir_program = LIRProgram {
         main_function: main_function,
         other_functions: other_functions,
-    }
+    };
+
+    (
+        lir_program,
+        lowering_global.gen_label,
+        lowering_global.gen_sym,
+    )
 }
 
 // Returns a sequence of LIR instructions and the symbol that will hold the result of those computations
