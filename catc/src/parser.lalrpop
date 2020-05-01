@@ -4,148 +4,276 @@ use std::collections::VecDeque;
 
 grammar;
 
-// TODO delete this
-pub Term: i32 = {
-    <n:Num> => n,
-    "(" <t:Term> ")" => t,
-};
-
-Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
-
-
 // program
-pub Program = {
-    <t:TopLevelDec*> => t
+pub Program: Program = {
+    <t:TopLevelDec*> => Program {
+        dec_list: t,
+    }
 }
 
 // top_level_dec
-pub TopLevelDec = {
-    "type" <id_1:Id> "=" "array" "of" <id_2:Id> => 
-    "type" <id_1:Id> "=" "{" <f:FieldDec*> "}",
-    "function" <id_1:Id> "(" <f:FormalArg*> ")" "->" <id_2:Id> "{" <exp:Exp+> "}"
+pub TopLevelDec: TopLevelDec = {
+    "type" <id_1:Id> "=" "array" "of" <id_2:Id> => TopLevelDec::TyDecArray {
+        new_type: id_1,
+        element_type: id_2,
+    },
+    "type" <id_1:Id> "=" "{" <field_decs:Comma<FieldDec>> "}" => TopLevelDec::TyDecRecord {
+        new_type: id_1,
+        field_decs: field_decs,
+    },
+    "function" <id_1:Id> "(" <args:Comma<FormalArg>> ")" "->" <id_2:Id> "{" <exp:Exp> "}" => TopLevelDec::FunDec {
+        name: id_1,
+        return_type: id_2,
+        args: args,
+        body: exp,
+    }
 }
 
 // formal_arg
-pub FormalArg = {
-    <id_1:Id> ":" <id_2:Id>
+pub FormalArg: (String, String) = {
+    <id_1:Id> ":" <id_2:Id> => (id_1, id_2)
 }
 
 // exp
-pub Exp = {
-    <lvalue:Lvalue> ":=" <exp:Exp>,
-    "if" <exp_1:Exp> "then" <exp_2:Exp>,
-    "while" <exp_1:Exp> "do" <exp_2:Exp>,
-    <id:Id> "[" <exp_1:Exp> "]" of <exp_2:Exp>,
-    "for" <id:Id> ":=" <exp_1:Exp> "to" <exp_2:Exp> "do" <exp_3>,
-    "let" <dec:Dec*> "in" <exp:Exp> "end",
-    <exp1:Exp1>
+pub Exp: Exp = {
+    <lvalue:LValue> ":=" <exp:Exp> => Exp::Assign {
+        left: lvalue,
+        right: exp
+    },
+    "if" <exp_1:Exp> "then" <exp_2:Exp> => Exp::IfThen {
+        if_exp: exp_1,
+        then_exp: exp2,
+    },
+    "while" <exp_1:Exp> "do" <exp_2:Exp> => Exp::While {
+        while_exp: exp_1,
+        do_exp: exp2,
+    },
+    <id:Id> "[" <exp_1:Exp> "]" "of" <exp_2:Exp> => Exp::ArrayCreate {
+        type_id: id,
+        length: exp_1,
+        initial_value: exp_2,
+    },
+    "for" <id:Id> ":=" <exp_1:Exp> "to" <exp_2:Exp> "do" <exp_3:Exp> => Exp::For {
+        id: id,
+        for_exp: exp_1,
+        to_exp: exp_2,
+        do_exp: exp_3,
+    },
+    "let" <decs:Dec*> "in" <exp:Exp> "end" => Exp::Let {
+        let_exp: decs,
+        in_exp: exp,
+    },
+    <exp1:Exp1> => exp1,
 }
 
 // exp1
-pub Exp1 = {
-    "if" <exp:Exp> "then" <exp2:Exp2> "else" <exp1:Exp1>,
-    <exp2:Exp2>,
+pub Exp1: Exp = {
+    "if" <exp:Exp> "then" <exp2:Exp2> "else" <exp1:Exp1> => Exp::IfThenElse {
+        if_exp: exp,
+        then_exp: exp2,
+        else_exp: exp1,
+    },
+    <exp2:Exp2> => exp2,
 }
 
 // exp2
-pub Exp2 = {
-    <exp2:Exp2> "or" <exp3:Exp3>,
-    <exp3:Exp3"
+pub Exp2: Exp = {
+    <exp2:Exp2> "or" <exp3:Exp3> => Exp::Infix {
+        left: exp2,
+        op: InfixSourceOp::Or,
+        right: exp3,
+    },
+    <exp3:Exp3> => exp3,
 }
 
 // exp3
-pub Exp3 = {
-    <exp3:Exp3> "and" <exp4:Exp4>,
-    <exp4:Exp4>
+pub Exp3: Exp = {
+    <exp3:Exp3> "and" <exp4:Exp4> => Exp::Infix {
+        left: exp3,
+        op: InfixSourceOp::And,
+        right: exp4,
+    },
+    <exp4:Exp4> => exp4,
 }
 
 // exp4
-pub Exp4 = {
-    <exp5:Exp5> "=" <exp5:Exp5>,
-    <exp5:Exp5> "<>" <exp5:Exp5>,
-    <exp5:Exp5> ">" <exp5:Exp5>,
-    <exp5:Exp5> ">=" <exp5:Exp5>,
-    <exp5:Exp5> "<" <exp5:Exp5>,
-    <exp5:Exp5> "<=" <exp5:Exp5>,
-    <exp5:Exp5>
+pub Exp4: Exp = {
+    <left:Exp5> "=" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::Equal,
+        right: right,
+    },
+    <left:Exp5> "<>" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::NotEqual,
+        right: right,
+    },
+    <left:Exp5> ">" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::GreaterThan,
+        right: right,
+    },
+    <left:Exp5> ">=" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::GreaterThanEqual,
+        right: right,
+    },
+    <left:Exp5> "<" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::LessThan,
+        right: right,
+    },
+    <left:Exp5> "<=" <right:Exp5> => Exp::Infix {
+        left: left,
+        op: InfixSourceOp::LessThanEqual,
+        right: right,
+    },
+    <exp5:Exp5> => exp5,
 }
 
 // exp5
-pub Exp5 = {
-    <exp5:Exp5> "+" <exp6:Exp6>,
-    <exp5:Exp5> "-" <exp6:Exp6>,
-    <exp6:Exp6>,
+pub Exp5: Exp = {
+    <exp5:Exp5> "+" <exp6:Exp6> => Exp::Infix {
+        left: exp5,
+        op: InfixSourceOp::Add,
+        right: exp6,
+    },
+    <exp5:Exp5> "-" <exp6:Exp6> => Exp::Infix {
+        left: exp5,
+        op: InfixSourceOp::Subtract,
+        right: exp6,
+    },
+    <exp6:Exp6> => exp6,
 }
 
 // exp6
-pub Exp6 = {
-    <exp6:Exp6> "*" <exp7:Exp7>,
-    <exp6:Exp6> "/" <exp7:Exp7>,
-    <exp7:Exp7>,
+pub Exp6: Exp = {
+    <exp6:Exp6> "*" <exp7:Exp7> => Exp::Infix {
+        left: exp6,
+        op: InfixSourceOp::Multiply,
+        right: exp7,
+    },
+    <exp6:Exp6> "/" <exp7:Exp7> => Exp::Infix {
+        left: exp6,
+        op: InfixSourceOp::Divide,
+        right: exp7,
+    },
+    <exp7:Exp7> => exp7,
 }
 
 // exp7
-pub Exp7 = {
-    <lvalue:Lvalue>,
-    "break",
-    <int_literal:IntLiteral>,
-    <string_literal:StringLiteral>,
-    <sequence:Sequence>
-    <id:Id> "{" <field_create:FieldCreate*> "}",
-    "-" <exp7:exp7>,
-    <id:Id> "(" <exp:Exp*> ")",
+pub Exp7: Exp = {
+    <lvalue:LValue> => Exp::LValue {
+        lvalue: lvalue,
+    },
+    "break" => Exp::Break,
+    <int_literal:IntLiteral> => Exp::IntLit {
+        value: int_literal,
+    },
+    <string_literal:StringLiteral> => Exp::StringLit {
+        value: string_literal,
+    },
+    <sequence:Sequence> => Exp::Sequence {
+        sequence: sequence
+    }
+    <id:Id> "{" <fields:Comma<FieldCreate>> "}" => Exp::RecordCreate {
+        type_id: id,
+        fields: field
+    },
+    "-" <exp7:Exp7> => Exp::Negate {
+        exp: exp7,
+    },
+    <id:Id> "(" <exp:Comma<Exp>> ")" => Exp::Call {
+        function_name: id,
+        args: exp,
+    },
 }
 
 // sequence
-pub Sequence = {
-    "(" <exp:Exp*> ")"
+pub Sequence: VecDeque<Exp> = {
+    "(" <exps:Semicolon<Exp>> ")" => exps
 }
 
 // field_create
-pub FieldCreate = {
-    <id:Id> "=" <exp:Exp>,
-}
+// pub FieldCreate: (String, Exp) = {
+//     <id:Id> "=" <exp:Exp>,
+// }
 
 // lvalue
-pub LValue = {
-    <id:Id>,
-    <subscript:Subscript>,
-    <field_exp:FieldExp>,
+pub LValue: LValue = {
+    <id:Id> => LValue::Id {
+        name: id,
+    },
+    <subscript:Subscript> => subscript,
+    <field_exp:FieldExp> => field_exp,
 }
 
 // subscript
-pub Subscript = {
-    <id:Id> "[" <exp:Exp> "]",
-    <subscript:Subscript> "[" <exp:Exp> "]",
-    <field_exp:FieldExp> "[" <exp:Exp> "]"
+pub Subscript: LValue::Subscript = {
+    <id:Id> "[" <exp:Exp> "]" => LValue::Subscript {
+        array: id,
+        index: exp,
+    },
+    <subscript:Subscript> "[" <exp:Exp> "]" => LValue::Subscript {
+        array: subscript,
+        index: exp,
+    },
+    <field_exp:FieldExp> "[" <exp:Exp> "]" => LValue::Subscript {
+        array: field_exp,
+        index: exp,
+    },
 }
 
 // field_exp
-pub FieldExp = {
-    <lvalue:LValue> "." <id:Id>
+pub FieldExp: LValue::FieldExp = {
+    <lvalue:LValue> "." <id:Id> => LValue::FieldExp {
+        record: lvalue,
+        field: id,
+    }
 }
 
 // dec
-pub Dec = {
-    "var" <id_1:Id> ":" <id_2:Id> ":=" <exp:Exp> 
+pub Dec: Dec = {
+    "var" <id_1:Id> ":" <id_2:Id> ":=" <exp:Exp> => Dec::VarDec {
+        name: id_1,
+        value_type: id_2,
+        value: exp,
+    }
 }
 
 // field_dec
-pub FieldDec = {
-    <id_1:Id> ":" <id_2:Id>
+pub FieldDec: (String, String) = {
+    <id_1:Id> ":" <id_2:Id> => (id_1, id_2),
 }
 
 // string_literal
-pub StringLiteral = {
-    r#"[^"]*"#
-}
+StringLiteral: String = r#""[^"]*""# => <>;
+
 
 // id
-pub Id = {
-    r"[a-zA-Z]*"
-}
+Id: String = r"[a-zA-Z]*" => <>;
 
 // int_literal
-pub IntLiteral = {
-    r"[0-9]+"
-}
+IntLiteral: i32 = r"[0-9]+" => i32::from_str(<>).unwrap();
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+Semicolon<T>: Vec<T> = {
+    <v:(<T> ";")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};

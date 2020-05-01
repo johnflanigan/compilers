@@ -15,7 +15,7 @@ pub enum TopLevelDec {
     },
     TyDecRecord {
         new_type: String,
-        feild_decs: VecDeque<(String, String)>,
+        field_decs: VecDeque<(String, String)>,
     },
     FunDec {
         name: String,
