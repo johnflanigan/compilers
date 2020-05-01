@@ -18,9 +18,9 @@ use crate::backend::compile;
 use crate::check_type::type_check;
 use lowering::lower;
 
-// #[macro_use]
-// extern crate lalrpop_util;
-mod parser;
+#[macro_use]
+extern crate lalrpop_util;
+lalrpop_mod!(pub parser);
 
 #[macro_use]
 extern crate clap;
