@@ -7,7 +7,7 @@ grammar;
 // program
 pub Program: Program = {
     <t:TopLevelDec*> => Program {
-        dec_list: t,
+        dec_list: VecDeque::from(t),
     }
 }
 
@@ -19,13 +19,13 @@ pub TopLevelDec: TopLevelDec = {
     },
     "type" <id_1:Id> "=" "{" <field_decs:Comma<FieldDec>> "}" => TopLevelDec::TyDecRecord {
         new_type: id_1,
-        field_decs: field_decs,
+        field_decs: VecDeque::from(field_decs),
     },
     "function" <id_1:Id> "(" <args:Comma<FormalArg>> ")" "->" <id_2:Id> "{" <exp:Exp> "}" => TopLevelDec::FunDec {
         name: id_1,
         return_type: id_2,
-        args: args,
-        body: exp,
+        args: VecDeque::from(args),
+        body: Box::new(exp),
     }
 }
 
@@ -38,30 +38,30 @@ pub FormalArg: (String, String) = {
 pub Exp: Exp = {
     <lvalue:LValue> ":=" <exp:Exp> => Exp::Assign {
         left: lvalue,
-        right: exp
+        right: Box::new(exp)
     },
     "if" <exp_1:Exp> "then" <exp_2:Exp> => Exp::IfThen {
-        if_exp: exp_1,
-        then_exp: exp2,
+        if_exp: Box::new(exp_1),
+        then_exp: Box::new(exp_2),
     },
     "while" <exp_1:Exp> "do" <exp_2:Exp> => Exp::While {
-        while_exp: exp_1,
-        do_exp: exp2,
+        while_exp: Box::new(exp_1),
+        do_exp: Box::new(exp_2),
     },
     <id:Id> "[" <exp_1:Exp> "]" "of" <exp_2:Exp> => Exp::ArrayCreate {
         type_id: id,
-        length: exp_1,
-        initial_value: exp_2,
+        length: Box::new(exp_1),
+        initial_value: Box::new(exp_2),
     },
     "for" <id:Id> ":=" <exp_1:Exp> "to" <exp_2:Exp> "do" <exp_3:Exp> => Exp::For {
         id: id,
-        for_exp: exp_1,
-        to_exp: exp_2,
-        do_exp: exp_3,
+        for_exp: Box::new(exp_1),
+        to_exp: Box::new(exp_2),
+        do_exp: Box::new(exp_3),
     },
     "let" <decs:Dec*> "in" <exp:Exp> "end" => Exp::Let {
-        let_exp: decs,
-        in_exp: exp,
+        let_exp: VecDeque::from(decs),
+        in_exp: Box::new(exp),
     },
     <exp1:Exp1> => exp1,
 }
@@ -69,9 +69,9 @@ pub Exp: Exp = {
 // exp1
 pub Exp1: Exp = {
     "if" <exp:Exp> "then" <exp2:Exp2> "else" <exp1:Exp1> => Exp::IfThenElse {
-        if_exp: exp,
-        then_exp: exp2,
-        else_exp: exp1,
+        if_exp: Box::new(exp),
+        then_exp: Box::new(exp2),
+        else_exp: Box::new(exp1),
     },
     <exp2:Exp2> => exp2,
 }
@@ -79,9 +79,9 @@ pub Exp1: Exp = {
 // exp2
 pub Exp2: Exp = {
     <exp2:Exp2> "or" <exp3:Exp3> => Exp::Infix {
-        left: exp2,
+        left: Box::new(exp2),
         op: InfixSourceOp::Or,
-        right: exp3,
+        right: Box::new(exp3),
     },
     <exp3:Exp3> => exp3,
 }
@@ -89,9 +89,9 @@ pub Exp2: Exp = {
 // exp3
 pub Exp3: Exp = {
     <exp3:Exp3> "and" <exp4:Exp4> => Exp::Infix {
-        left: exp3,
+        left: Box::new(exp3),
         op: InfixSourceOp::And,
-        right: exp4,
+        right: Box::new(exp4),
     },
     <exp4:Exp4> => exp4,
 }
@@ -99,34 +99,34 @@ pub Exp3: Exp = {
 // exp4
 pub Exp4: Exp = {
     <left:Exp5> "=" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::Equal,
-        right: right,
+        right: Box::new(right),
     },
     <left:Exp5> "<>" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::NotEqual,
-        right: right,
+        right: Box::new(right),
     },
     <left:Exp5> ">" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::GreaterThan,
-        right: right,
+        right: Box::new(right),
     },
     <left:Exp5> ">=" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::GreaterThanEqual,
-        right: right,
+        right: Box::new(right),
     },
     <left:Exp5> "<" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::LessThan,
-        right: right,
+        right: Box::new(right),
     },
     <left:Exp5> "<=" <right:Exp5> => Exp::Infix {
-        left: left,
+        left: Box::new(left),
         op: InfixSourceOp::LessThanEqual,
-        right: right,
+        right: Box::new(right),
     },
     <exp5:Exp5> => exp5,
 }
@@ -134,14 +134,14 @@ pub Exp4: Exp = {
 // exp5
 pub Exp5: Exp = {
     <exp5:Exp5> "+" <exp6:Exp6> => Exp::Infix {
-        left: exp5,
+        left: Box::new(exp5),
         op: InfixSourceOp::Add,
-        right: exp6,
+        right: Box::new(exp6),
     },
     <exp5:Exp5> "-" <exp6:Exp6> => Exp::Infix {
-        left: exp5,
+        left: Box::new(exp5),
         op: InfixSourceOp::Subtract,
-        right: exp6,
+        right: Box::new(exp6),
     },
     <exp6:Exp6> => exp6,
 }
@@ -149,14 +149,14 @@ pub Exp5: Exp = {
 // exp6
 pub Exp6: Exp = {
     <exp6:Exp6> "*" <exp7:Exp7> => Exp::Infix {
-        left: exp6,
+        left: Box::new(exp6),
         op: InfixSourceOp::Multiply,
-        right: exp7,
+        right: Box::new(exp7),
     },
     <exp6:Exp6> "/" <exp7:Exp7> => Exp::Infix {
-        left: exp6,
+        left: Box::new(exp6),
         op: InfixSourceOp::Divide,
-        right: exp7,
+        right: Box::new(exp7),
     },
     <exp7:Exp7> => exp7,
 }
@@ -175,29 +175,29 @@ pub Exp7: Exp = {
     },
     <sequence:Sequence> => Exp::Sequence {
         sequence: sequence
-    }
+    },
     <id:Id> "{" <fields:Comma<FieldCreate>> "}" => Exp::RecordCreate {
         type_id: id,
-        fields: field
+        fields: VecDeque::from(fields)
     },
     "-" <exp7:Exp7> => Exp::Negate {
-        exp: exp7,
+        exp: Box::new(exp7),
     },
     <id:Id> "(" <exp:Comma<Exp>> ")" => Exp::Call {
         function_name: id,
-        args: exp,
+        args: VecDeque::from(exp),
     },
 }
 
 // sequence
 pub Sequence: VecDeque<Exp> = {
-    "(" <exps:Semicolon<Exp>> ")" => exps
+    "(" <exps:Semicolon<Exp>> ")" => VecDeque::from(exps)
 }
 
 // field_create
-// pub FieldCreate: (String, Exp) = {
-//     <id:Id> "=" <exp:Exp>,
-// }
+pub FieldCreate: (String, Exp) = {
+    <id:Id> "=" <exp:Exp> => (id, exp),
+}
 
 // lvalue
 pub LValue: LValue = {
@@ -209,25 +209,25 @@ pub LValue: LValue = {
 }
 
 // subscript
-pub Subscript: LValue::Subscript = {
+pub Subscript: LValue = {
     <id:Id> "[" <exp:Exp> "]" => LValue::Subscript {
-        array: id,
-        index: exp,
+        array: Box::new(LValue::Id{name: id}),
+        index: Box::new(exp),
     },
     <subscript:Subscript> "[" <exp:Exp> "]" => LValue::Subscript {
-        array: subscript,
-        index: exp,
+        array: Box::new(subscript),
+        index: Box::new(exp),
     },
     <field_exp:FieldExp> "[" <exp:Exp> "]" => LValue::Subscript {
-        array: field_exp,
-        index: exp,
+        array: Box::new(field_exp),
+        index: Box::new(exp),
     },
 }
 
 // field_exp
-pub FieldExp: LValue::FieldExp = {
+pub FieldExp: LValue = {
     <lvalue:LValue> "." <id:Id> => LValue::FieldExp {
-        record: lvalue,
+        record: Box::new(lvalue),
         field: id,
     }
 }
@@ -247,11 +247,10 @@ pub FieldDec: (String, String) = {
 }
 
 // string_literal
-StringLiteral: String = r#""[^"]*""# => <>;
-
+StringLiteral: String = r#""[^"]*""# => <>.to_string();
 
 // id
-Id: String = r"[a-zA-Z]*" => <>;
+Id: String = r"[a-zA-Z]*" => <>.to_string();
 
 // int_literal
 IntLiteral: i32 = r"[0-9]+" => i32::from_str(<>).unwrap();

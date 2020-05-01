@@ -385,9 +385,9 @@ fn type_check_exp(
         Exp::ArrayCreate {
             type_id,
             length,
-            inital_value,
+            initial_value,
         } => {
-            let (tp_init, init_exp) = type_check_exp(gti, c, brk, *inital_value)?;
+            let (tp_init, init_exp) = type_check_exp(gti, c, brk, *initial_value)?;
             let (tp_len, len_exp) = type_check_exp(gti, c, brk, *length)?;
             if Type::Int != tp_len {
                 return Err(TypeError("Array length not int"));

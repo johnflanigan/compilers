@@ -51,7 +51,7 @@ pub enum Exp {
     ArrayCreate {
         type_id: String,
         length: Box<Exp>,
-        inital_value: Box<Exp>,
+        initial_value: Box<Exp>,
     },
     RecordCreate {
         type_id: String,
