@@ -662,14 +662,14 @@ fn select_fn(
                             }));
                     }
                     LIRInstruction::JumpC { to, condition } => {
-                        // Perform comparison
+                        // Perform comparison, swapping arguments to match assembly expectations
                         selected_function
                             .body
                             .push(X64SAssembly::Instruction(X64SInstruction {
                                 op_code: X64opCode::Cmp,
                                 args: SOperands::Two(
-                                    SOperand::Symbol(condition.left),
                                     SOperand::Symbol(condition.right),
+                                    SOperand::Symbol(condition.left),
                                 ),
                             }));
 

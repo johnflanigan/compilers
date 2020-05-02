@@ -552,25 +552,33 @@ fn lower_exp(
                 lower_exp(*for_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut for_assembly);
 
-            // Emit for loop label
-            let for_loop_label_assembly = LIRAssembly::Label(for_loop_label);
-            for_loop_assembly.push(for_loop_label_assembly);
+            // Assign for_exp to id
+            let id_assign_instruction = LIRInstruction::Assign {
+                assign_to: id,
+                id: for_symbol,
+            };
+            let id_assign_assembly = LIRAssembly::Instruction(id_assign_instruction);
+            for_loop_assembly.push(id_assign_assembly);
 
             // Lower to_exp
             let (mut to_assembly, to_symbol) = lower_exp(*to_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut to_assembly);
 
-            // Jump to end label if for_symbol == to_symbol
-            let equal_to_comparison = Comparison {
-                c: ComparisonType::Equal,
-                left: for_symbol,
+            // Emit for loop label
+            let for_loop_label_assembly = LIRAssembly::Label(for_loop_label);
+            for_loop_assembly.push(for_loop_label_assembly);
+
+            // Compare if id > to_symbol
+            let greater_than_comparison = Comparison {
+                c: ComparisonType::GreaterThan,
+                left: id,
                 right: to_symbol,
             };
 
-            // Jump to do label if condition != 0
+            // Jump to end label if id > to_symbol met
             let jump_end_instruction = LIRInstruction::JumpC {
                 to: end_label,
-                condition: equal_to_comparison,
+                condition: greater_than_comparison,
             };
             let jump_end_assembly = LIRAssembly::Instruction(jump_end_instruction);
             for_loop_assembly.push(jump_end_assembly);
@@ -579,10 +587,10 @@ fn lower_exp(
             let (mut do_assembly, do_symbol) = lower_exp(*do_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut do_assembly);
 
-            // Increment for_symbol
+            // Increment id
             let increment_instruction = LIRInstruction::BinaryOp {
-                assign_to: for_symbol,
-                left: for_symbol,
+                assign_to: id,
+                left: id,
                 op: InfixOp::Add,
                 right: one_symbol,
             };
