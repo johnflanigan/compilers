@@ -214,7 +214,7 @@ fn lower_exp(
                     infix_assembly.push(jump_end_assembly);
 
                     // Emit false label
-                    let false_label_assembly = LIRAssembly::Label(true_label);
+                    let false_label_assembly = LIRAssembly::Label(false_label);
                     infix_assembly.push(false_label_assembly);
 
                     // Assign 0 to infix_symbol
