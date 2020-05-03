@@ -6,6 +6,8 @@ use std::convert::TryInto;
 
 #[derive(Debug)]
 pub struct LoweringGlobal {
+    pub symbol_table: HashMap<Symbol, TypeId>,
+    pub types: HashMap<TypeId, Type>,
     pub gen_sym: SymbolGenerator,
     pub gen_label: LabelGenerator,
 }
@@ -15,9 +17,22 @@ pub fn lower(
     type_checked_program: CheckedProgram,
 ) -> (LIRProgram, LabelGenerator, SymbolGenerator) {
     let mut lowering_global = LoweringGlobal {
+        symbol_table: type_checked_program.symbol_table,
+        types: type_checked_program.types,
         gen_sym: type_checked_program.gen_sym,
         gen_label: type_checked_program.gen_label,
     };
+
+    /*
+    pub struct CheckedProgram {
+        pub function_symbols: HashMap<Label, FunctionType>,
+        pub symbol_table: HashMap<Symbol, TypeId>,
+        pub types: HashMap<TypeId, Type>,
+        pub gen_sym: SymbolGenerator,
+        pub gen_label: LabelGenerator,
+        pub dec_list: VecDeque<CheckedTopLevelDec>,
+    }
+    */
 
     // Create LIRProgram fields
     // TODO fix this dummy function
@@ -109,7 +124,10 @@ fn lower_exp(
             // Return assembly instruction and temporary symbol
             (vec![string_assembly], string_symbol)
         }
-        CheckedExp::LValue { lvalue } => lower_lvalue_value(lvalue, lowering_global, None),
+        CheckedExp::LValue { lvalue } => {
+            let (_, assembly, symbol) = lower_lvalue_value(lvalue, lowering_global, None);
+            (assembly, symbol)
+        }
         CheckedExp::Sequence { sequence } => {
             let mut sequence_assembly = vec![];
             let mut sequence_symbols = vec![];
@@ -318,7 +336,7 @@ fn lower_exp(
         }
         CheckedExp::Assign { left, right } => {
             // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
-            let (mut left_assembly, left_symbol) = lower_lvalue_value(left, lowering_global, None);
+            let (_, mut left_assembly, left_symbol) = lower_lvalue_value(left, lowering_global, None);
 
             // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
             let (mut right_assembly, right_symbol) = lower_exp(*right, lowering_global, None);
@@ -666,19 +684,25 @@ fn lower_lvalue_value(
     checked_lvalue: CheckedLValue,
     lowering_global: &mut LoweringGlobal,
     exit_label: Option<Label>,
-) -> (Vec<LIRAssembly>, Symbol) {
+) -> (Type, Vec<LIRAssembly>, Symbol) {
     match checked_lvalue {
         CheckedLValue::Id { name } => {
             // Create temporary symbol
             let symbol = lowering_global.gen_sym.new_symbol();
+
             // Assign Id to temporary symbol
             let instruction = LIRInstruction::Assign {
                 assign_to: symbol,
                 id: name,
             };
             let assembly = LIRAssembly::Instruction(instruction);
+
+            // Lookup type
+            let type_id = lowering_global.symbol_table.get(&name).unwrap();
+            let type_value = lowering_global.types.get(&type_id).unwrap();
+
             // Return assembly instruction and temporary symbol
-            (vec![assembly], symbol)
+            (type_value.clone(), vec![assembly], symbol)
         }
         CheckedLValue::Subscript { array, index } => {
             let mut subscript_assembly = vec![];
@@ -687,7 +711,7 @@ fn lower_lvalue_value(
             let symbol = lowering_global.gen_sym.new_symbol();
 
             // Get assembly and symbol for checked
-            let (mut array_assembly, array_symbol) =
+            let (type_value, mut array_assembly, array_symbol) =
                 lower_lvalue_value(*array, lowering_global, None);
             subscript_assembly.append(&mut array_assembly);
 
@@ -707,11 +731,54 @@ fn lower_lvalue_value(
             subscript_assembly.push(load_from_memory_at_offset_assembly);
 
             // Return assembly instruction and temporary symbol
-            (subscript_assembly, symbol)
+            (type_value, subscript_assembly, symbol)
         }
         CheckedLValue::FieldExp { record, field } => {
-            // TODO implement fields. Need to find way to map field strings to offset
-            unimplemented!();
+            let mut field_assembly = vec![];
+
+            // Create temporary symbol
+            let symbol = lowering_global.gen_sym.new_symbol();
+
+            // Get assembly and symbol for checked
+            let (type_value, mut record_assembly, record_symbol) =
+                lower_lvalue_value(*record, lowering_global, None);
+            field_assembly.append(&mut record_assembly);
+
+            match type_value {
+                Type::Record(v) => {
+                    let index = v.iter().position(|r| r.0 == field).unwrap();
+                    let element_type = lowering_global.types.get(&v.get(index).unwrap().1).unwrap();
+
+                    // Add 1 because 0 represents record address
+                    let field_index = (index as i64) + 1;
+
+                    // Store index in symbol
+                    let index_symbol = lowering_global.gen_sym.new_symbol();
+                    let index_instruction = LIRInstruction::IntLit {
+                        assign_to: index_symbol,
+                        value: field_index,
+                    };
+                    let index_assembly = LIRAssembly::Instruction(index_instruction);
+                    field_assembly.push(index_assembly);
+
+                    // Load from memory offset
+                    let load_from_memory_at_offset_instruction =
+                        LIRInstruction::LoadFromMemoryAtOffset {
+                            assign_to: symbol,
+                            location: record_symbol,
+                            offset: index_symbol,
+                        };
+                    let load_from_memory_at_offset_assembly =
+                        LIRAssembly::Instruction(load_from_memory_at_offset_instruction);
+                    field_assembly.push(load_from_memory_at_offset_assembly);
+
+                    // Return field assembly and symbol
+                    (element_type.clone(), field_assembly, symbol)
+                }
+                _ => {
+                    panic!("Unexpected type value");
+                }
+            }
         }
     }
 }
