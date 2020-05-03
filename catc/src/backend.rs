@@ -927,6 +927,38 @@ fn fix_up_fn(function: &X64SFunction) -> X64SFunction {
                             .body
                             .push(X64SAssembly::Instruction(instruction_4));
                     }
+                    // op x, ('q')
+                    SOperands::Two(a @ SOperand::Symbol(_), b @ SOperand::MemorySym(_)) => {
+                        // mov a into rax
+                        let instruction_1 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(a, SOperand::Register(X64Register::Rax)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_1));
+
+                        // mov b into rdx
+                        let instruction_2 = X64SInstruction {
+                            op_code: X64opCode::Movq,
+                            args: SOperands::Two(b, SOperand::Register(X64Register::Rdx)),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_2));
+
+                        // opcode rax, (rdx)
+                        let instruction_3 = X64SInstruction {
+                            op_code: instruction.op_code,
+                            args: SOperands::Two(
+                                SOperand::Register(X64Register::Rax),
+                                SOperand::MemoryReg(X64Register::Rdx),
+                            ),
+                        };
+                        fixed_function
+                            .body
+                            .push(X64SAssembly::Instruction(instruction_3));
+                    }
                     _ => (fixed_function.body.push(assembly.clone())),
                 };
             }
@@ -1043,7 +1075,8 @@ fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -
                         let stack_or_reg = homes.get(&symbol).unwrap();
                         let operand = match stack_or_reg {
                             StackOrReg::Stack(offset) => {
-                                panic!("Memory stack access are not allowed")
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
+                                // panic!("Memory stack access are not allowed")
                             }
                             StackOrReg::Reg(register) => Operand::MemoryReg(*register),
                         };
@@ -1075,7 +1108,7 @@ fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -
                         let stack_or_reg = homes.get(&symbol).unwrap();
                         let operand = match stack_or_reg {
                             StackOrReg::Stack(offset) => {
-                                panic!("Memory stack access are not allowed")
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
                             }
                             StackOrReg::Reg(register) => Operand::MemoryReg(*register),
                         };
@@ -1107,7 +1140,7 @@ fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -
                         let stack_or_reg = homes.get(&symbol).unwrap();
                         let operand = match stack_or_reg {
                             StackOrReg::Stack(offset) => {
-                                panic!("Memory stack access are not allowed")
+                                Operand::MemoryOffset(X64Value::Absolute(*offset), X64Register::Rbp)
                             }
                             StackOrReg::Reg(register) => Operand::MemoryReg(*register),
                         };
