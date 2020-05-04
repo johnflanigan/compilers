@@ -336,7 +336,8 @@ fn lower_exp(
         }
         CheckedExp::Assign { left, right } => {
             // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
-            let (_, mut left_assembly, left_symbol) = lower_lvalue_value(left, lowering_global, None);
+            let (_, mut left_assembly, left_symbol) =
+                lower_lvalue_value(left, lowering_global, None);
 
             // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
             let (mut right_assembly, right_symbol) = lower_exp(*right, lowering_global, None);
@@ -783,11 +784,11 @@ fn lower_lvalue_value(
     }
 }
 
-fn lower_lvalue_assigning_symbol(
-    checked: CheckedLValue,
-    symbol: Symbol,
-    break_to: Option<Label>,
-    gen: &mut LoweringGlobal,
-) -> Vec<LIRAssembly> {
-    unimplemented!();
-}
+// fn lower_lvalue_assigning_symbol(
+//     checked: CheckedLValue,
+//     symbol: Symbol,
+//     break_to: Option<Label>,
+//     gen: &mut LoweringGlobal,
+// ) -> Vec<LIRAssembly> {
+//     unimplemented!();
+// }

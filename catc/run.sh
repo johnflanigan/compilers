@@ -1,3 +1,4 @@
+export OUT_DIR=.
 for EXAMPLE_NUMBER in {1..25}
 do
     echo $EXAMPLE_NUMBER
