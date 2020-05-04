@@ -108,11 +108,11 @@ impl StackedContext {
         &mut self,
         gti: &mut GlobalTypeInfo,
         new_type: String,
-        feild_decs: VecDeque<(String, String)>,
+        field_decs: VecDeque<(String, String)>,
     ) -> Result<(), TypeError> {
-        pairwise_diffrent(&feild_decs)?;
+        pairwise_diffrent(&field_decs)?;
 
-        let feild_decs: Vec<(String, TypeId)> = feild_decs
+        let field_decs: Vec<(String, TypeId)> = field_decs
             .iter()
             .cloned()
             .map(|(id, type_name)| match self.lookup_t(&type_name) {
@@ -124,7 +124,7 @@ impl StackedContext {
             })
             .collect::<Result<_, _>>()?;
 
-        let new_type_id = gti.new_type_id(Type::Record(feild_decs));
+        let new_type_id = gti.new_type_id(Type::Record(field_decs));
 
         *self = self.clone().stack(
             HashMap::new(),
@@ -281,9 +281,9 @@ pub fn type_check(program: Program) -> Result<CheckedProgram, TypeError> {
             }
             TopLevelDec::TyDecRecord {
                 new_type,
-                feild_decs,
+                field_decs,
             } => {
-                sc.declare_type_record(&mut type_info, new_type, feild_decs)?;
+                sc.declare_type_record(&mut type_info, new_type, field_decs)?;
             }
             TopLevelDec::FunDec {
                 name,
@@ -385,9 +385,9 @@ fn type_check_exp(
         Exp::ArrayCreate {
             type_id,
             length,
-            inital_value,
+            initial_value,
         } => {
-            let (tp_init, init_exp) = type_check_exp(gti, c, brk, *inital_value)?;
+            let (tp_init, init_exp) = type_check_exp(gti, c, brk, *initial_value)?;
             let (tp_len, len_exp) = type_check_exp(gti, c, brk, *length)?;
             if Type::Int != tp_len {
                 return Err(TypeError("Array length not int"));
@@ -419,7 +419,7 @@ fn type_check_exp(
                 Type::Record(fields) => fields,
                 _ => return Err(TypeError("Not a record type")),
             };
-            let cfeilds = fields
+            let cfields = fields
                 .into_iter()
                 .zip(field_type_ids.clone().into_iter())
                 .map(|((id, exp), (field_name, type_id))| {
@@ -436,7 +436,7 @@ fn type_check_exp(
                 .collect::<Result<VecDeque<(String, CheckedExp)>, TypeError>>()?;
             Ok((
                 Type::Record(field_type_ids),
-                CheckedExp::RecordCreate { fields: cfeilds },
+                CheckedExp::RecordCreate { fields: cfields },
             ))
         }
         Exp::Assign { left, right } => {
@@ -689,15 +689,15 @@ fn type_check_lvalue(
     }
 }
 
-fn pairwise_diffrent(feild_decs: &VecDeque<(String, String)>) -> Result<(), TypeError> {
+fn pairwise_diffrent(field_decs: &VecDeque<(String, String)>) -> Result<(), TypeError> {
     let mut i = 0;
 
     let mut pairwise_diffrent = true;
 
-    while i < feild_decs.len() {
+    while i < field_decs.len() {
         let mut j = i + 1;
-        while j < feild_decs.len() {
-            pairwise_diffrent = pairwise_diffrent && (feild_decs[i].0 != feild_decs[j].0);
+        while j < field_decs.len() {
+            pairwise_diffrent = pairwise_diffrent && (field_decs[i].0 != field_decs[j].0);
             j += 1;
         }
         i += 1;

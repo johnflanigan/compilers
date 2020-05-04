@@ -6,16 +6,33 @@ use std::convert::TryInto;
 
 #[derive(Debug)]
 pub struct LoweringGlobal {
+    pub symbol_table: HashMap<Symbol, TypeId>,
+    pub types: HashMap<TypeId, Type>,
     pub gen_sym: SymbolGenerator,
     pub gen_label: LabelGenerator,
 }
 
 #[allow(dead_code, unused_variables)]
-pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
+pub fn lower(
+    type_checked_program: CheckedProgram,
+) -> (LIRProgram, LabelGenerator, SymbolGenerator) {
     let mut lowering_global = LoweringGlobal {
+        symbol_table: type_checked_program.symbol_table,
+        types: type_checked_program.types,
         gen_sym: type_checked_program.gen_sym,
         gen_label: type_checked_program.gen_label,
     };
+
+    /*
+    pub struct CheckedProgram {
+        pub function_symbols: HashMap<Label, FunctionType>,
+        pub symbol_table: HashMap<Symbol, TypeId>,
+        pub types: HashMap<TypeId, Type>,
+        pub gen_sym: SymbolGenerator,
+        pub gen_label: LabelGenerator,
+        pub dec_list: VecDeque<CheckedTopLevelDec>,
+    }
+    */
 
     // Create LIRProgram fields
     // TODO fix this dummy function
@@ -51,10 +68,16 @@ pub fn lower(type_checked_program: CheckedProgram) -> LIRProgram {
         }
     }
 
-    LIRProgram {
+    let lir_program = LIRProgram {
         main_function: main_function,
         other_functions: other_functions,
-    }
+    };
+
+    (
+        lir_program,
+        lowering_global.gen_label,
+        lowering_global.gen_sym,
+    )
 }
 
 // Returns a sequence of LIR instructions and the symbol that will hold the result of those computations
@@ -101,7 +124,10 @@ fn lower_exp(
             // Return assembly instruction and temporary symbol
             (vec![string_assembly], string_symbol)
         }
-        CheckedExp::LValue { lvalue } => lower_lvalue_value(lvalue, lowering_global, None),
+        CheckedExp::LValue { lvalue } => {
+            let (_, assembly, symbol) = lower_lvalue_value(lvalue, lowering_global, None);
+            (assembly, symbol)
+        }
         CheckedExp::Sequence { sequence } => {
             let mut sequence_assembly = vec![];
             let mut sequence_symbols = vec![];
@@ -164,7 +190,7 @@ fn lower_exp(
                     let binary_op_assembly = LIRAssembly::Instruction(binary_op_instruction);
 
                     infix_assembly.push(binary_op_assembly);
-                },
+                }
                 Err(_) => {
                     // Generate true, false, and end labels
                     let true_label = lowering_global.gen_label.new_label();
@@ -184,9 +210,7 @@ fn lower_exp(
                     infix_assembly.push(jump_true_assembly);
 
                     // Else, jump to false
-                    let jump_false_instruction = LIRInstruction::Jump {
-                        to: false_label,
-                    };
+                    let jump_false_instruction = LIRInstruction::Jump { to: false_label };
                     let jump_false_assembly = LIRAssembly::Instruction(jump_false_instruction);
                     infix_assembly.push(jump_false_assembly);
 
@@ -208,7 +232,7 @@ fn lower_exp(
                     infix_assembly.push(jump_end_assembly);
 
                     // Emit false label
-                    let false_label_assembly = LIRAssembly::Label(true_label);
+                    let false_label_assembly = LIRAssembly::Label(false_label);
                     infix_assembly.push(false_label_assembly);
 
                     // Assign 0 to infix_symbol
@@ -222,7 +246,7 @@ fn lower_exp(
                     // Emit end label
                     let end_label_assembly = LIRAssembly::Label(end_label);
                     infix_assembly.push(end_label_assembly);
-                },
+                }
             }
 
             (infix_assembly, infix_symbol)
@@ -312,7 +336,8 @@ fn lower_exp(
         }
         CheckedExp::Assign { left, right } => {
             // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
-            let (mut left_assembly, left_symbol) = lower_lvalue_value(left, lowering_global, None);
+            let (_, mut left_assembly, left_symbol) =
+                lower_lvalue_value(left, lowering_global, None);
 
             // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
             let (mut right_assembly, right_symbol) = lower_exp(*right, lowering_global, None);
@@ -546,25 +571,33 @@ fn lower_exp(
                 lower_exp(*for_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut for_assembly);
 
-            // Emit for loop label
-            let for_loop_label_assembly = LIRAssembly::Label(for_loop_label);
-            for_loop_assembly.push(for_loop_label_assembly);
+            // Assign for_exp to id
+            let id_assign_instruction = LIRInstruction::Assign {
+                assign_to: id,
+                id: for_symbol,
+            };
+            let id_assign_assembly = LIRAssembly::Instruction(id_assign_instruction);
+            for_loop_assembly.push(id_assign_assembly);
 
             // Lower to_exp
             let (mut to_assembly, to_symbol) = lower_exp(*to_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut to_assembly);
 
-            // Jump to end label if for_symbol == to_symbol
-            let equal_to_comparison = Comparison {
-                c: ComparisonType::Equal,
-                left: for_symbol,
+            // Emit for loop label
+            let for_loop_label_assembly = LIRAssembly::Label(for_loop_label);
+            for_loop_assembly.push(for_loop_label_assembly);
+
+            // Compare if id > to_symbol
+            let greater_than_comparison = Comparison {
+                c: ComparisonType::GreaterThan,
+                left: id,
                 right: to_symbol,
             };
 
-            // Jump to do label if condition != 0
+            // Jump to end label if id > to_symbol met
             let jump_end_instruction = LIRInstruction::JumpC {
                 to: end_label,
-                condition: equal_to_comparison,
+                condition: greater_than_comparison,
             };
             let jump_end_assembly = LIRAssembly::Instruction(jump_end_instruction);
             for_loop_assembly.push(jump_end_assembly);
@@ -573,10 +606,10 @@ fn lower_exp(
             let (mut do_assembly, do_symbol) = lower_exp(*do_exp, lowering_global, Some(end_label));
             for_loop_assembly.append(&mut do_assembly);
 
-            // Increment for_symbol
+            // Increment id
             let increment_instruction = LIRInstruction::BinaryOp {
-                assign_to: for_symbol,
-                left: for_symbol,
+                assign_to: id,
+                left: id,
                 op: InfixOp::Add,
                 right: one_symbol,
             };
@@ -652,19 +685,25 @@ fn lower_lvalue_value(
     checked_lvalue: CheckedLValue,
     lowering_global: &mut LoweringGlobal,
     exit_label: Option<Label>,
-) -> (Vec<LIRAssembly>, Symbol) {
+) -> (Type, Vec<LIRAssembly>, Symbol) {
     match checked_lvalue {
         CheckedLValue::Id { name } => {
             // Create temporary symbol
             let symbol = lowering_global.gen_sym.new_symbol();
+
             // Assign Id to temporary symbol
             let instruction = LIRInstruction::Assign {
                 assign_to: symbol,
                 id: name,
             };
             let assembly = LIRAssembly::Instruction(instruction);
+
+            // Lookup type
+            let type_id = lowering_global.symbol_table.get(&name).unwrap();
+            let type_value = lowering_global.types.get(&type_id).unwrap();
+
             // Return assembly instruction and temporary symbol
-            (vec![assembly], symbol)
+            (type_value.clone(), vec![assembly], symbol)
         }
         CheckedLValue::Subscript { array, index } => {
             let mut subscript_assembly = vec![];
@@ -673,7 +712,7 @@ fn lower_lvalue_value(
             let symbol = lowering_global.gen_sym.new_symbol();
 
             // Get assembly and symbol for checked
-            let (mut array_assembly, array_symbol) =
+            let (type_value, mut array_assembly, array_symbol) =
                 lower_lvalue_value(*array, lowering_global, None);
             subscript_assembly.append(&mut array_assembly);
 
@@ -693,20 +732,63 @@ fn lower_lvalue_value(
             subscript_assembly.push(load_from_memory_at_offset_assembly);
 
             // Return assembly instruction and temporary symbol
-            (subscript_assembly, symbol)
+            (type_value, subscript_assembly, symbol)
         }
         CheckedLValue::FieldExp { record, field } => {
-            // TODO implement fields. Need to find way to map field strings to offset
-            unimplemented!();
+            let mut field_assembly = vec![];
+
+            // Create temporary symbol
+            let symbol = lowering_global.gen_sym.new_symbol();
+
+            // Get assembly and symbol for checked
+            let (type_value, mut record_assembly, record_symbol) =
+                lower_lvalue_value(*record, lowering_global, None);
+            field_assembly.append(&mut record_assembly);
+
+            match type_value {
+                Type::Record(v) => {
+                    let index = v.iter().position(|r| r.0 == field).unwrap();
+                    let element_type = lowering_global.types.get(&v.get(index).unwrap().1).unwrap();
+
+                    // Add 1 because 0 represents record address
+                    let field_index = (index as i64) + 1;
+
+                    // Store index in symbol
+                    let index_symbol = lowering_global.gen_sym.new_symbol();
+                    let index_instruction = LIRInstruction::IntLit {
+                        assign_to: index_symbol,
+                        value: field_index,
+                    };
+                    let index_assembly = LIRAssembly::Instruction(index_instruction);
+                    field_assembly.push(index_assembly);
+
+                    // Load from memory offset
+                    let load_from_memory_at_offset_instruction =
+                        LIRInstruction::LoadFromMemoryAtOffset {
+                            assign_to: symbol,
+                            location: record_symbol,
+                            offset: index_symbol,
+                        };
+                    let load_from_memory_at_offset_assembly =
+                        LIRAssembly::Instruction(load_from_memory_at_offset_instruction);
+                    field_assembly.push(load_from_memory_at_offset_assembly);
+
+                    // Return field assembly and symbol
+                    (element_type.clone(), field_assembly, symbol)
+                }
+                _ => {
+                    panic!("Unexpected type value");
+                }
+            }
         }
     }
 }
 
-fn lower_lvalue_assigning_symbol(
-    checked: CheckedLValue,
-    symbol: Symbol,
-    break_to: Option<Label>,
-    gen: &mut LoweringGlobal,
-) -> Vec<LIRAssembly> {
-    unimplemented!();
-}
+// fn lower_lvalue_assigning_symbol(
+//     checked: CheckedLValue,
+//     symbol: Symbol,
+//     break_to: Option<Label>,
+//     gen: &mut LoweringGlobal,
+// ) -> Vec<LIRAssembly> {
+//     unimplemented!();
+// }

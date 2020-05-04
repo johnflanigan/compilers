@@ -193,7 +193,7 @@ impl fmt::Display for X64opCode {
             X64opCode::Or => "or",
             X64opCode::And => "and",
             X64opCode::Movq => "movq",
-            X64opCode::Neg => "neg",
+            X64opCode::Neg => "negq",
             X64opCode::Push => "pushq",
             X64opCode::Pop => "popq",
             X64opCode::Call => "call",

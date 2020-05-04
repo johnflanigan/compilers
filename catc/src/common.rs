@@ -105,8 +105,8 @@ impl fmt::Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Label::Uid(u) => write!(f, "L{}", u),
-            Label::Allocate => write!(f, "allocate"),
-            Label::AllocateAndMemset => write!(f, "allocate_and_memset"),
+            Label::Allocate => write!(f, "_allocate"),
+            Label::AllocateAndMemset => write!(f, "_allocate_and_memset"),
             Label::PrintlnInt => write!(f, "_print_line_int"),
             Label::PrintlnString => write!(f, "_print_line_string"),
             Label::PrintInt => write!(f, "_print_int"),

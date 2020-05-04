@@ -1,0 +1,1 @@
+function main () -> void { if 2 < 10 then () }

@@ -1,0 +1,7 @@
+type r = {i: int, j: int}
+function main () -> int {
+    let var a : r := r {i = 15, j = 5} in
+        (a.j := a.i + a.j;
+        a.j)
+    end
+}
