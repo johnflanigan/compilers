@@ -1,0 +1,48 @@
+type intArray = array of int
+type fibRec = { a : int, b : int }
+
+function fib_while(n : int) -> int {
+    let var i : int := 0
+        var a : int := 0
+        var b : int := 1
+        var temp : int := 0
+    in (while i < n do
+            (temp := a; a := b; b := temp + b; i := i + 1);
+        b)
+    end
+}
+
+function fib_for(n : int) -> int {
+    let var a : int := 0
+        var b : int := 1
+        var temp : int := 0
+    in (for i := 0 to n - 1 do
+            (temp := a; a := b; b := temp + b);
+        b)
+    end
+}
+
+function fib_accumulating_parameters (n : int, r : fibRec) -> int {
+    if n = 0 then
+        r.b
+    else
+        fib_accumulating_parameters(n - 1, let var old_a : int := r.a in (r.a := r.b; r.b := old_a + r.b; r) end)
+}
+
+function fib_memoized (n : int, memo : intArray) -> int {
+    if memo[n] = -1 then
+        (let var res : int := if n = 0 or n = 1 then
+                                  1
+                              else
+                                  fib_memoized(n - 1) + fib_memoized(n - 2)
+        in (memo[n] := res; res)
+        end)
+    else
+        memo[n]
+}
+
+function main () -> void {
+    let var res : int := fib_accumulating_parameters(50, fibRec {a = 0, b = 1})
+    in print_line_int(res)
+    end
+}

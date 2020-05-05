@@ -10,7 +10,7 @@ uint64_t* allocate(uint64_t length) {
 }
 
 // allocate memory, initialize it and leak it
-uint64_t* allocate_and_memset(uint64_t length, uint64_t inital_value) {
+uint64_t* allocate_and_memset(uint64_t length, int64_t inital_value) {
         uint64_t *memory = malloc(sizeof(*memory) * length);
         for (uint64_t i = 0; i < length; i++) {
                 memory[i] = inital_value;
@@ -18,12 +18,12 @@ uint64_t* allocate_and_memset(uint64_t length, uint64_t inital_value) {
         return memory;
 }
 
-void print_int(uint64_t number) {
-        printf("%"PRId64"", (int64_t) number);
+void print_int(int64_t number) {
+        printf("%"PRId64"", number);
 }
 
-void print_line_int(uint64_t number) {
-        printf("%"PRId64"\n", (int64_t) number);
+void print_line_int(int64_t number) {
+        printf("%"PRId64"\n", number);
 }
 
 void print_string(uint64_t *string_arg) {

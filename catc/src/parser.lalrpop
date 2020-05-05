@@ -250,7 +250,7 @@ pub FieldDec: (String, String) = {
 StringLiteral: String = r#""[^"]*""# => <>.to_string();
 
 // id
-Id: String = r"[a-zA-Z]*" => <>.to_string();
+Id: String = r"[a-zA-Z_]+" => <>.to_string();
 
 // int_literal
 IntLiteral: i32 = r"[0-9]+" => i32::from_str(<>).unwrap();

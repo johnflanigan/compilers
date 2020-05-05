@@ -36,8 +36,53 @@ impl StackedContext {
         .into_iter()
         .collect();
 
-        // TODO add primitives
-        let f = vec![].into_iter().collect();
+        let f = vec![
+            ("print_line_int".to_string(), Label::PrintlnInt),
+            ("print_int".to_string(), Label::PrintInt),
+            ("print_line_string".to_string(), Label::PrintlnString),
+            ("print_string".to_string(), Label::PrintString),
+        ]
+        .into_iter()
+        .collect();
+
+        let pli_param = gti.gen_sym.new_symbol();
+        let pi_param = gti.gen_sym.new_symbol();
+        let pls_param = gti.gen_sym.new_symbol();
+        let ps_param = gti.gen_sym.new_symbol();
+
+        gti.insert_f(
+            &Label::PrintlnInt,
+            FunctionType {
+                return_type: void_id,
+                arguments: vec![(pli_param, int_id)],
+            },
+        )
+        .unwrap();
+        gti.insert_f(
+            &Label::PrintInt,
+            FunctionType {
+                return_type: void_id,
+                arguments: vec![(pi_param, int_id)],
+            },
+        )
+        .unwrap();
+        gti.insert_f(
+            &Label::PrintlnString,
+            FunctionType {
+                return_type: void_id,
+                arguments: vec![(pls_param, str_id)],
+            },
+        )
+        .unwrap();
+        gti.insert_f(
+            &Label::PrintString,
+            FunctionType {
+                return_type: void_id,
+                arguments: vec![(ps_param, str_id)],
+            },
+        )
+        .unwrap();
+
         StackedContext {
             context: Context { f, s, t },
             rest: None,
