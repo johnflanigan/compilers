@@ -24,6 +24,8 @@ pub struct GlobalInfo {
     string_literals: HashMap<Label, String>,
 }
 
+const QUADWORD_SIZE: i64 = 8;
+
 /*
  * Compile
  *
@@ -246,13 +248,13 @@ fn select_fn(
                     } => {
                         let memory_location = state.symbol_gen.new_symbol();
 
-                        // Move 16 into %rax
+                        // Move 8 into %rax
                         selected_function
                             .body
                             .push(X64SAssembly::Instruction(X64SInstruction {
                                 op_code: X64opCode::Movq,
                                 args: SOperands::Two(
-                                    SOperand::Immediate(X64Value::Absolute(16)),
+                                    SOperand::Immediate(X64Value::Absolute(QUADWORD_SIZE)),
                                     SOperand::Register(X64Register::Rax),
                                 ),
                             }));
@@ -306,13 +308,13 @@ fn select_fn(
                     } => {
                         let memory_location = state.symbol_gen.new_symbol();
 
-                        // Move 16 into %rax
+                        // Move 8 into %rax
                         selected_function
                             .body
                             .push(X64SAssembly::Instruction(X64SInstruction {
                                 op_code: X64opCode::Movq,
                                 args: SOperands::Two(
-                                    SOperand::Immediate(X64Value::Absolute(16)),
+                                    SOperand::Immediate(X64Value::Absolute(QUADWORD_SIZE)),
                                     SOperand::Register(X64Register::Rax),
                                 ),
                             }));
@@ -1061,8 +1063,15 @@ fn assign_homes_fn(function: X64SFunction, homes: HashMap<Symbol, StackOrReg>) -
                 Operand::Register(X64Register::Rbp),
             ),
         }));
-    // Allocating too much OR too little causes segmentation fault
-    let stack_reservation: i64 = ((homes.len() + 1) * 16).try_into().unwrap();
+
+    // Ensure allocation is multiple of 16
+    let homes_len: i64 = homes.len().try_into().unwrap();
+    let reservations: i64 = if homes.len() % 2 == 0 {
+        homes_len
+    } else {
+        homes_len + 1
+    };
+    let stack_reservation: i64 = reservations * QUADWORD_SIZE;
     compiled_function
         .instruction_listing
         .push(X64Assembly::Instruction(X64Instruction {
@@ -1312,11 +1321,11 @@ fn register_assignment(allocation: HashMap<Symbol, Option<Color>>) -> HashMap<Sy
     // A default implementation for homework 2 should map all symbols in
     // allocation to some stack offset.
     let mut assignment = HashMap::new();
-    let mut offset = -16;
+    let mut offset = -QUADWORD_SIZE;
 
     for (symbol, _) in allocation.iter() {
         assignment.insert(*symbol, StackOrReg::Stack(offset));
-        offset -= 16;
+        offset -= QUADWORD_SIZE;
     }
 
     assignment
