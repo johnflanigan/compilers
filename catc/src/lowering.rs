@@ -371,6 +371,9 @@ fn lower_exp(
             let (mut if_assembly, if_symbol) = lower_exp(*if_exp, lowering_global, None);
             if_then_else_assembly.append(&mut if_assembly);
 
+            // Generate new symbol to store result
+            let if_then_else_symbol = lowering_global.gen_sym.new_symbol();
+
             // Create zero for use in comparison
             let zero_symbol = lowering_global.gen_sym.new_symbol();
             let zero_instruction = LIRInstruction::IntLit {
@@ -395,18 +398,8 @@ fn lower_exp(
             let jump_true_assembly = LIRAssembly::Instruction(jump_true_instruction);
             if_then_else_assembly.push(jump_true_assembly);
 
-            // Create zero comparison
-            let zero_comparison = Comparison {
-                c: ComparisonType::NotEqual,
-                left: if_symbol,
-                right: zero_symbol,
-            };
-
-            // Jump false conditional
-            let jump_false_instruction = LIRInstruction::JumpC {
-                to: false_label,
-                condition: zero_comparison,
-            };
+            // Jump false
+            let jump_false_instruction = LIRInstruction::Jump { to: false_label };
             let jump_false_assembly = LIRAssembly::Instruction(jump_false_instruction);
             if_then_else_assembly.push(jump_false_assembly);
 
@@ -417,6 +410,15 @@ fn lower_exp(
             // Lower then branch
             let (mut then_assembly, then_symbol) = lower_exp(*then_exp, lowering_global, None);
             if_then_else_assembly.append(&mut then_assembly);
+
+            // Assign then_symbol to if_then_else_symbol
+            let assign_true_symbol_instruction = LIRInstruction::Assign {
+                assign_to: if_then_else_symbol,
+                id: then_symbol,
+            };
+            let assign_true_symbol_assembly =
+                LIRAssembly::Instruction(assign_true_symbol_instruction);
+            if_then_else_assembly.push(assign_true_symbol_assembly);
 
             // Jump end label
             let jump_instruction = LIRInstruction::Jump { to: end_label };
@@ -431,12 +433,20 @@ fn lower_exp(
             let (mut else_assembly, else_symbol) = lower_exp(*else_exp, lowering_global, None);
             if_then_else_assembly.append(&mut else_assembly);
 
+            // Assign else_symbol to if_then_else_symbol
+            let assign_else_symbol_instruction = LIRInstruction::Assign {
+                assign_to: if_then_else_symbol,
+                id: else_symbol,
+            };
+            let assign_else_symbol_assembly =
+                LIRAssembly::Instruction(assign_else_symbol_instruction);
+            if_then_else_assembly.push(assign_else_symbol_assembly);
+
             // Emit end label
             let end_label_assembly = LIRAssembly::Label(end_label);
             if_then_else_assembly.push(end_label_assembly);
 
-            // TODO unsure what to return here as a symbol
-            (if_then_else_assembly, then_symbol)
+            (if_then_else_assembly, if_then_else_symbol)
         }
         CheckedExp::IfThen { if_exp, then_exp } => {
             let mut if_then_assembly = vec![];
