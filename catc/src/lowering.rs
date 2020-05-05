@@ -300,20 +300,21 @@ fn lower_exp(
             // Allocate length of fields vector and set record to address
             let call_instruction = LIRInstruction::Call {
                 assign_to: record_symbol,
-                function_name: Label::AllocateAndMemset,
+                function_name: Label::Allocate,
                 args: vec![length_symbol],
             };
             let call_assembly = LIRAssembly::Instruction(call_instruction);
             record_assembly.push(call_assembly);
 
-            for (pos, (_, exp)) in fields.iter().enumerate() {
+            // Set fields
+            for (pos, (_field_name, exp)) in fields.iter().enumerate() {
                 let (mut exp_assembly, exp_symbol) = lower_exp(exp.clone(), lowering_global, None);
                 record_assembly.append(&mut exp_assembly);
 
-                // Geneate offset symbol
+                // Geneate symbol to hold offset
                 let offset_symbol = lowering_global.gen_sym.new_symbol();
 
-                // Set offset equal to position
+                // Set offset symbol equal to position in fields vector
                 let offset_instruction = LIRInstruction::IntLit {
                     assign_to: offset_symbol,
                     value: pos as i64,
@@ -335,25 +336,18 @@ fn lower_exp(
             (record_assembly, record_symbol)
         }
         CheckedExp::Assign { left, right } => {
-            // Call lower_exp on the left-hand operand to get left_assembly and left_symbol
-            let (_, mut left_assembly, left_symbol) =
-                lower_lvalue_value(left, lowering_global, None);
+            let mut assign_assembly = vec![];
 
             // Call lower_exp on the right-hand operand to get right_assembly and right_symbol
             let (mut right_assembly, right_symbol) = lower_exp(*right, lowering_global, None);
-
-            let lir_assign_instruction = LIRInstruction::Assign {
-                assign_to: left_symbol,
-                id: right_symbol,
-            };
-            let lir_assign_assembly = LIRAssembly::Instruction(lir_assign_instruction);
-
-            let mut assign_assembly = vec![];
-            assign_assembly.append(&mut left_assembly);
             assign_assembly.append(&mut right_assembly);
-            assign_assembly.push(lir_assign_assembly);
 
-            (assign_assembly, left_symbol)
+            // Call lower_lvalue_assigning_symbol on the left-hand operand to assign right symbol
+            let (_, mut left_assignment_assembly, left_assignment_symbol) =
+                lower_lvalue_assigning_symbol(left, right_symbol, lowering_global, None);
+            assign_assembly.append(&mut left_assignment_assembly);
+
+            (assign_assembly, left_assignment_symbol)
         }
         CheckedExp::IfThenElse {
             if_exp,
@@ -370,6 +364,9 @@ fn lower_exp(
             // Lower condition
             let (mut if_assembly, if_symbol) = lower_exp(*if_exp, lowering_global, None);
             if_then_else_assembly.append(&mut if_assembly);
+
+            // Generate new symbol to store result
+            let if_then_else_symbol = lowering_global.gen_sym.new_symbol();
 
             // Create zero for use in comparison
             let zero_symbol = lowering_global.gen_sym.new_symbol();
@@ -395,18 +392,8 @@ fn lower_exp(
             let jump_true_assembly = LIRAssembly::Instruction(jump_true_instruction);
             if_then_else_assembly.push(jump_true_assembly);
 
-            // Create zero comparison
-            let zero_comparison = Comparison {
-                c: ComparisonType::NotEqual,
-                left: if_symbol,
-                right: zero_symbol,
-            };
-
-            // Jump false conditional
-            let jump_false_instruction = LIRInstruction::JumpC {
-                to: false_label,
-                condition: zero_comparison,
-            };
+            // Jump false
+            let jump_false_instruction = LIRInstruction::Jump { to: false_label };
             let jump_false_assembly = LIRAssembly::Instruction(jump_false_instruction);
             if_then_else_assembly.push(jump_false_assembly);
 
@@ -417,6 +404,15 @@ fn lower_exp(
             // Lower then branch
             let (mut then_assembly, then_symbol) = lower_exp(*then_exp, lowering_global, None);
             if_then_else_assembly.append(&mut then_assembly);
+
+            // Assign then_symbol to if_then_else_symbol
+            let assign_true_symbol_instruction = LIRInstruction::Assign {
+                assign_to: if_then_else_symbol,
+                id: then_symbol,
+            };
+            let assign_true_symbol_assembly =
+                LIRAssembly::Instruction(assign_true_symbol_instruction);
+            if_then_else_assembly.push(assign_true_symbol_assembly);
 
             // Jump end label
             let jump_instruction = LIRInstruction::Jump { to: end_label };
@@ -431,12 +427,20 @@ fn lower_exp(
             let (mut else_assembly, else_symbol) = lower_exp(*else_exp, lowering_global, None);
             if_then_else_assembly.append(&mut else_assembly);
 
+            // Assign else_symbol to if_then_else_symbol
+            let assign_else_symbol_instruction = LIRInstruction::Assign {
+                assign_to: if_then_else_symbol,
+                id: else_symbol,
+            };
+            let assign_else_symbol_assembly =
+                LIRAssembly::Instruction(assign_else_symbol_instruction);
+            if_then_else_assembly.push(assign_else_symbol_assembly);
+
             // Emit end label
             let end_label_assembly = LIRAssembly::Label(end_label);
             if_then_else_assembly.push(end_label_assembly);
 
-            // TODO unsure what to return here as a symbol
-            (if_then_else_assembly, then_symbol)
+            (if_then_else_assembly, if_then_else_symbol)
         }
         CheckedExp::IfThen { if_exp, then_exp } => {
             let mut if_then_assembly = vec![];
@@ -750,8 +754,7 @@ fn lower_lvalue_value(
                     let index = v.iter().position(|r| r.0 == field).unwrap();
                     let element_type = lowering_global.types.get(&v.get(index).unwrap().1).unwrap();
 
-                    // Add 1 because 0 represents record address
-                    let field_index = (index as i64) + 1;
+                    let field_index = index as i64;
 
                     // Store index in symbol
                     let index_symbol = lowering_global.gen_sym.new_symbol();
@@ -784,11 +787,96 @@ fn lower_lvalue_value(
     }
 }
 
-// fn lower_lvalue_assigning_symbol(
-//     checked: CheckedLValue,
-//     symbol: Symbol,
-//     break_to: Option<Label>,
-//     gen: &mut LoweringGlobal,
-// ) -> Vec<LIRAssembly> {
-//     unimplemented!();
-// }
+fn lower_lvalue_assigning_symbol(
+    left: CheckedLValue,
+    right: Symbol,
+    lowering_global: &mut LoweringGlobal,
+    exit_label: Option<Label>,
+) -> (Type, Vec<LIRAssembly>, Symbol) {
+    match left {
+        CheckedLValue::Id { name } => {
+            // Assign name to symbol
+            let instruction = LIRInstruction::Assign {
+                assign_to: name,
+                id: right,
+            };
+            let assembly = LIRAssembly::Instruction(instruction);
+
+            // Lookup type
+            let type_id = lowering_global.symbol_table.get(&name).unwrap();
+            let type_value = lowering_global.types.get(&type_id).unwrap();
+
+            // Return assembly instruction and left symbol
+            (type_value.clone(), vec![assembly], name)
+        }
+        CheckedLValue::Subscript { array, index } => {
+            let mut subscript_assembly = vec![];
+
+            // Get assembly and symbol for checked
+            let (type_value, mut array_assembly, array_symbol) =
+                lower_lvalue_value(*array, lowering_global, None);
+            subscript_assembly.append(&mut array_assembly);
+
+            // Geneate index symbol
+            let (mut index_assembly, index_symbol) = lower_exp(*index, lowering_global, None);
+            subscript_assembly.append(&mut index_assembly);
+
+            // Load from memory offset
+            let store_to_memory_at_offset_instruction = LIRInstruction::StoreToMemoryAtOffset {
+                location: array_symbol,
+                offset: index_symbol,
+                value: right,
+            };
+            let store_to_memory_at_offset_assembly =
+                LIRAssembly::Instruction(store_to_memory_at_offset_instruction);
+
+            subscript_assembly.push(store_to_memory_at_offset_assembly);
+
+            // Return assembly instruction and temporary symbol
+            (type_value, subscript_assembly, array_symbol)
+        }
+        CheckedLValue::FieldExp { record, field } => {
+            let mut field_assembly = vec![];
+
+            // Get assembly and symbol for checked
+            let (type_value, mut record_assembly, record_symbol) =
+                lower_lvalue_value(*record, lowering_global, None);
+            field_assembly.append(&mut record_assembly);
+
+            match type_value {
+                Type::Record(v) => {
+                    let index = v.iter().position(|r| r.0 == field).unwrap();
+                    let element_type = lowering_global.types.get(&v.get(index).unwrap().1).unwrap();
+
+                    let field_index = index as i64;
+
+                    // Store index in symbol
+                    let index_symbol = lowering_global.gen_sym.new_symbol();
+                    let index_instruction = LIRInstruction::IntLit {
+                        assign_to: index_symbol,
+                        value: field_index,
+                    };
+                    let index_assembly = LIRAssembly::Instruction(index_instruction);
+                    field_assembly.push(index_assembly);
+
+                    // Store to memory at offset
+                    let store_to_memory_at_offset_instruction =
+                        LIRInstruction::StoreToMemoryAtOffset {
+                            location: record_symbol,
+                            offset: index_symbol,
+                            value: right,
+                        };
+                    let store_to_memory_at_offset_assembly =
+                        LIRAssembly::Instruction(store_to_memory_at_offset_instruction);
+                    field_assembly.push(store_to_memory_at_offset_assembly);
+
+                    // Return field assembly and symbol
+                    (element_type.clone(), field_assembly, record_symbol)
+                }
+                _ => {
+                    panic!("Unexpected type value");
+                }
+            }
+        }
+    }
+}
