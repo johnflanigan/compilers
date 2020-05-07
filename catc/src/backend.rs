@@ -19,9 +19,9 @@ use std::convert::TryInto;
 
 #[derive(Debug)]
 pub struct GlobalInfo {
-    label_gen: LabelGenerator,
-    symbol_gen: SymbolGenerator,
-    string_literals: HashMap<Label, String>,
+    pub label_gen: LabelGenerator,
+    pub symbol_gen: SymbolGenerator,
+    pub string_literals: HashMap<Label, String>,
 }
 
 const QUADWORD_SIZE: i64 = 8;
@@ -77,7 +77,7 @@ pub fn compile(
  *      LIR instruction then the later stages might clobber your careful use of
  *      Rax and Rdx.
  */
-fn select(program: LIRProgram, state: &mut GlobalInfo) -> X64SProgram {
+pub fn select(program: LIRProgram, state: &mut GlobalInfo) -> X64SProgram {
     let mut string_literals = HashMap::new();
 
     let mut selected_program = X64SProgram {

@@ -6,8 +6,16 @@
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::common::{Comparison, InfixOp, Label, Symbol};
+
+#[macro_export]
+macro_rules! linst {
+    ($e:expr) => {
+        LIRAssembly::Instruction($e)
+    };
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LIRProgram {
@@ -106,4 +114,62 @@ pub enum LIRInstruction {
         condition: Comparison,
     },
     // Continue execution at the label "to" only id the condition is met.
+}
+
+impl fmt::Display for LIRAssembly {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LIRAssembly::Label(l) => write!(f, "{}:", l),
+            LIRAssembly::Instruction(i) => write!(f, "{}", i),
+        }
+    }
+}
+
+impl fmt::Display for LIRInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LIRInstruction::Nop => write!(f, "{}", "nop"),
+            LIRInstruction::IntLit { assign_to, value } => write!(f, "{} = {}", assign_to, value),
+            LIRInstruction::StringLit { assign_to, value } => {
+                write!(f, "{} = {}", assign_to, value)
+            }
+            LIRInstruction::StoreToMemoryAtOffset {
+                location,
+                offset,
+                value,
+            } => write!(f, "{}[{}] = {}", location, offset, value),
+            LIRInstruction::LoadFromMemoryAtOffset {
+                assign_to,
+                location,
+                offset,
+            } => write!(f, "{} = {}[{}]", assign_to, location, offset),
+            LIRInstruction::Assign { assign_to, id } => write!(f, "{} = {}", assign_to, id),
+            LIRInstruction::Negate { assign_to, value } => write!(f, "{} = -{}", assign_to, value),
+            LIRInstruction::BinaryOp {
+                assign_to,
+                left,
+                op,
+                right,
+            } => write!(f, "{} = {} {:?} {}", assign_to, left, op, right),
+            LIRInstruction::Call {
+                assign_to,
+                function_name,
+                args,
+            } => write!(
+                f,
+                "{} = {}({})",
+                assign_to,
+                function_name,
+                args.iter()
+                    .map(|s| format!("{}", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            LIRInstruction::Jump { to } => write!(f, "jump {}", to),
+            LIRInstruction::JumpC {
+                to,
+                condition: Comparison { left, c, right },
+            } => write!(f, "jumpc {} if {} {:?} {}", to, left, c, right),
+        }
+    }
 }
