@@ -601,18 +601,49 @@ pub fn difference<T: std::marker::Copy + std::hash::Hash + std::cmp::Eq>(
 pub fn liveness<ASSEM: GenKill + Debug + Display>(
     mut cfg: ControlFlowGraph<ASSEM>,
 ) -> ControlFlowGraph<ASSEM> {
-    unimplemented!(
-        "
-        make a work list of all nodes
-        while the work list is not empty:
-            remove node n from the work list
-            live_out[n] = union in[s] for all s which are successors of n
-            old_live_in = in[n]
-            live_in[n] = gen[n] union (live_out[n] - kill[n])
-            if old_live_in != live_in[n]:
-                add all predecessors of n to work-list
-    "
-    );
+    // make a work list of all nodes
+    let mut work_list = cfg.node_indices();
+    let mut live_in: HashMap<NodeIndex, HashSet<Symbol>> = HashMap::new();
+    let mut live_out: HashMap<NodeIndex, HashSet<Symbol>> = HashMap::new();
+
+    // while the work list is not empty:
+    while !work_list.is_empty() {
+        // remove node n from the work list
+        let node = work_list.pop_front().unwrap();
+
+        // live_out[n] = union in[s] for all s which are successors of n
+        let successors = cfg.succ(node);
+        let mut successors_live_in: Vec<HashSet<Symbol>> = vec![];
+        for successor in successors {
+            if live_in.contains_key(&successor) {
+                successors_live_in.push(live_in.get(&successor).unwrap().clone());
+            }
+        }
+        live_out.insert(node, union_all(successors_live_in));
+
+        // old_live_in = in[n]
+        // live_in[n] = gen[n] union (live_out[n] - kill[n])
+        let old_live_in = live_in
+            .insert(
+                node,
+                union(
+                    cfg.gen_node(node),
+                    difference(live_out.get(&node).unwrap().clone(), cfg.kill_node(node)),
+                ),
+            )
+            .unwrap_or(HashSet::new());
+
+        // if old_live_in != live_in[n]:
+        if &old_live_in != live_in.get(&node).unwrap_or(&HashSet::new()) {
+            // add all predecessors of n to work-list
+            let predecessors = cfg.pred(node);
+            for predecessor in predecessors {
+                work_list.push_back(predecessor);
+            }
+        }
+    }
+
+    cfg
 }
 
 /*
