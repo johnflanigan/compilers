@@ -643,6 +643,25 @@ pub fn liveness<ASSEM: GenKill + Debug + Display>(
         }
     }
 
+    let mut data: HashMap<Node, HashSet<Symbol>> = HashMap::new();
+    for (key, value) in live_in.iter() {
+        let node_weight = cfg.node_weight(*key);
+
+        data.insert(node_weight, value.clone());
+    }
+
+    for (key, value) in live_out.iter() {
+        let node_weight = cfg.node_weight(*key);
+
+        if data.contains_key(&node_weight) {
+            let updated_data = union(data.remove(&node_weight).unwrap(), value.clone());
+            data.insert(node_weight, updated_data);
+        } else {
+            data.insert(node_weight, value.clone());
+        }
+    }
+
+    cfg.data = data;
     cfg
 }
 
