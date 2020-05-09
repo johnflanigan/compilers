@@ -28,6 +28,14 @@ extern crate clap;
 use std::fs::File;
 use std::io::prelude::*;
 
+/*
+ * CFG
+ */
+#[cfg(test)]
+pub mod test_control_flow_graph;
+
+pub mod control_flow_graph;
+
 fn main() -> std::io::Result<()> {
     // Set up command line argument handling
     let matches = clap_app!(catc =>

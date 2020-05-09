@@ -40,12 +40,9 @@ pub enum X64Register {
 pub enum X64opCode {
     Add,
     Sub,
-    Inc,
-    Dec,
     Or,
     And,
     Movq,
-    Movabsq,
     Cmp,
     Lea,
 
@@ -209,9 +206,6 @@ impl fmt::Display for X64opCode {
             X64opCode::Nop => "nop",
             X64opCode::Cmp => "cmp",
             X64opCode::Shl => "shlq",
-            X64opCode::Movabsq => "movabsq",
-            X64opCode::Inc => "inc",
-            X64opCode::Dec => "dec",
         };
         write!(f, "{}", name)
     }

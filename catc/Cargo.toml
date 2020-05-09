@@ -12,6 +12,7 @@ ron = "*"
 lalrpop-util = "*"
 regex="*"
 clap="*"
+petgraph = "0.5.0"
 
 [build-dependencies]
 lalrpop = { version = "*", features = [ "lexer" ] }
